@@ -1,0 +1,24 @@
+# Secrets — mai al repositori
+.env
+*.local.yml
+fikua.local.yml
+CLAUDE.local.md
+
+# Base de dades local
+*.db
+*.db-wal
+*.db-shm
+data/
+
+# Binaris compilats
+app/niu
+app/bin/
+dist/
+
+# Go
+*.test
+*.out
+vendor/
+
+# Sistema
+.DS_Store

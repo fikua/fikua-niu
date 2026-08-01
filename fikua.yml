@@ -1,0 +1,101 @@
+# fikua.yml — Niu project manifest, consumed by Fikua SDD System.
+#
+# Master brief: PLAN.md (frozen input to /define, approved 2026-08-01).
+
+schema_version: "1"
+
+# ── Identity ──────────────────────────────────────────────────────────
+name: "niu"
+description: "Private household app for two — shared shopping list and pantry"
+owner: "Fikua Studio"
+client: "N/A — personal project"
+language:
+  team: "ca"                     # human-facing docs in Catalan
+  model: "en"                    # CLAUDE.md and .claude/* in English
+
+# ── Documentation paths (relative to PROJECT root) ────────────────────
+docs:
+  root: "docs/"
+  overview: "docs/overview.md"
+  architecture: "docs/architecture.md"
+  changes_dir: "docs/changes/"
+  conventions_dir: "docs/conventions/"
+  glossary: "docs/glossary.md"
+  changelog: "CHANGELOG.md"
+
+# ── Tech stack ────────────────────────────────────────────────────────
+stack:
+  backend: ["go", "chi"]
+  frontend: ["html", "css", "javascript"]   # no framework, no build step
+  database: ["sqlite"]
+  infra: ["docker-compose", "traefik", "github-actions", "cloudflare"]
+architecture_pattern: "hexagonal"           # light — internal/ package boundaries
+
+# ── Build / test / run commands ───────────────────────────────────────
+commands:
+  bootstrap: "cd app && go mod download"
+  up: "cd app && docker compose up -d"
+  down: "cd app && docker compose down"
+  test: "cd app && go test ./..."
+  test_backend: "cd app && go test ./..."
+  test_frontend: ""
+  lint: "gofmt -l"               # CONTRACT: accepts a trailing file path
+  typecheck: "cd app && go vet ./..."
+  typecheck_on_save: true
+  build: "cd app && go build ./..."
+
+# ── Backlog adapter ───────────────────────────────────────────────────
+backlog:
+  type: "markdown"
+  config:
+    file: "BACKLOG.md"
+    issue_prefix: "NIU"
+  states:
+    captured: "status:captured"
+    planned: "status:planned"
+    in_progress: "status:in-progress"
+    reviewed: "status:reviewed"
+    human_review: "status:in-review"
+    done: "status:done"
+
+# ── Workflow tuning ───────────────────────────────────────────────────
+workflow:
+  phases:
+    capture: true
+    explore: true
+    plan: true
+    code: true
+    review: true
+    commit: true
+    archive: true
+  agents:
+    # Core
+    product_manager: true
+    qa_engineer: true
+    software_architect: true
+    task_planner: true
+    fullstack_developer: true
+    code_reviewer: true
+    # Opt-in
+    security_engineer: true      # §3 hardening + NIU-4 audit
+    platform_engineer: true      # NIU-2 deployment, NIU-3 OTEL
+    ux_ui_designer: true         # warm look & feel is a first-class requirement
+    marketing_strategist: false
+    copywriter: false
+    finance_analyst: false
+  closing:
+    changelog: true
+    version_bump: true
+  invariants:
+    docker_only: false
+    squash_merge: true
+    single_item_per_session: true
+
+# ── Conventions and standards ─────────────────────────────────────────
+conventions:
+  load: []
+  ignore: []
+
+# ── Extras ────────────────────────────────────────────────────────────
+extras:
+  telemetry: false
