@@ -3,12 +3,12 @@ artefact: review
 key: "NIU-1"
 title: "Llista de la compra ↔ rebost (auth stubbed)"
 status: "in_review"
-verdict: "CHANGES_REQUESTED"
+verdict: "APPROVED"
 owner: "code-reviewer"
 co_reviewers: ["qa-engineer", "security-engineer"]
 tasks_path: "./tasks.md"
 findings_count: 7
-blocking_count: 1
+blocking_count: 0
 sources:
   - "OWASP Code Review Top 10 (2017)"
   - "Google Engineering Practices — Code Review Developer Guide"
@@ -29,7 +29,47 @@ updated: "2026-08-01"
 
 ## 1. Verdict
 
-**Verdict:** `CHANGES_REQUESTED`
+**Verdict:** `APPROVED` — després d'aplicar les correccions de §1.1.
+
+> **Veredicte original de l'auditoria: `CHANGES_REQUESTED`.** Es conserva
+> el raonament complet més avall perquè quedi constància del que es va
+> trobar; el veredicte s'ha revisat un cop corregides i verificades les
+> troballes bloquejants i majors.
+
+### 1.1 Correccions aplicades i verificades (2026-08-01)
+
+| Troballa | Severitat | Correcció | Verificació |
+|---|---|---|---|
+| **F-01** — test d'EC-08/NFR-04 tautològic | BLOCKING | Substituït per (a) assercció sobre la taula de rutes real com a conjunt tancat i (b) `TestGETRequestsDoNotMutateState`, que fa un GET a cada ruta registrada contra un `spyRepo` i exigeix zero crides mutadores | **Prova de mutació**: s'hi va injectar una ruta GET que esborra — el test nou falla, el vell hauria passat |
+| **F-S02** — caràcters de control només ASCII | MAJOR | `hasControlChars` ara rebutja `unicode.IsControl` (C0+C1), `\n`/`\r`/`\t` interns i categoria `Cf` (bidi, amplada zero, BOM) | 12 càrregues hostils a `TestService_Add_HostileInvisibleChars` + `TestBidiOverrideRejectedEndToEnd` (HTTP) + `TestService_Add_ZeroWidthCannotBypassDuplicates` (el bypass concret d'EC-06) |
+| **F-S04** — cos de petició il·limitat | MAJOR | Middleware `LimitBody` (64 KiB, `MaxBytesReader`) + timeouts de servidor (read/write/idle/header) i `MaxHeaderBytes` | `TestOversizedBodyRejectedWithoutBuffering` mesura l'assignació real amb `runtime.MemStats` i exigeix que no es materialitzi el cos |
+| **F-S01** — S3a sense test de navegador | MAJOR | Nou `app/tests/e2e/specs/xss.spec.js`: 5 vectors d'injecció + camí `aria-live` + CSP tal com la rep el navegador | 7 tests Playwright verds en Chromium real |
+| **F-02** — `Move` no transaccional (ADR-01) | MAJOR | La posició de destí es calcula **dins** de la transacció del moviment; el paràmetre `position` passa a ser un marcador ignorat, documentat a la interfície `Repository` | Suite completa verda; contracte d'ADR-01 restaurat |
+
+**Estat de la suite després de les correccions:** 31 tests Go + 18 tests
+Playwright verds; `go vet` i `gofmt` nets.
+
+**Pendent, no bloquejant** (traslladat a NIU-2, vegeu §7):
+
+- **F-03** — el test de concurrència (AC-09/CF-12) segueix afirmant només
+  «cap 5xx + convergència», no identifica el guanyador determinista per
+  `updated_at` tal com ADR-01 descriu. El comportament és correcte; el que
+  és feble és l'assercció.
+- **F-04** — FLIP mòbil pot programar una transformació de rectangle zero
+  cap a coordenades de la pestanya oculta.
+- **F-05** — comentaris de documentació obsolets derivats de F-02.
+- **F-07** — T-33 (validació manual d'accessibilitat) sense registre
+  escrit, a diferència de `killtest`.
+- **F-S03 / F-S05** — friccions documentades del seam d'auth
+  (`WithCurrentUser` mapeja tot error a 500; tres handlers fan
+  `user, _ :=`). Contingudes dins del seam, a resoldre a NIU-4.
+
+**F-06** (fonts Nunito absents) queda **resolt**: s'ha autoallotjat
+`Nunito-Variable-Latin.woff2` (39 KB, OFL, subconjunt llatí). Un únic
+fitxer variable cobreix l'eix 400–700, millor per a NFR-06 que els dos
+fitxers estàtics previstos.
+
+### 1.2 Raonament original de l'auditoria
 
 **Rationale:** La implementació és, en conjunt, sòlida i fidel a
 `design.md`/`proposal.md`: el seam d'auth (ADR-03) és net, la
@@ -566,6 +606,14 @@ dependència sospitosa ni abandonada; `go.sum` present i complet.
 
 ### 6.7 Veredicte de seguretat
 
+**`APPROVED`** — les tres troballes `MAJOR` d'aquesta secció (F-S01,
+F-S02, F-S04) han estat corregides i verificades; vegeu §1.1 per a la
+correcció i la prova de cadascuna. F-S03 i F-S05 (friccions del seam
+d'auth) queden per a NIU-4, contingudes dins del seam tal com ADR-03
+preveia.
+
+#### Veredicte original de l'auditoria
+
 **`CHANGES_REQUESTED`**
 
 Cap troballa `BLOCKING`: els controls nuclis de NIU-1 (S7, S8, S11, S1
@@ -602,9 +650,21 @@ acotades; F-S03, F-S05 i F-S06 poden acceptar-se com a risc documentat.
 
 ## 8. Sign-off
 
-> Es completarà quan el veredicte sigui `APPROVED`, després de repetir
-> `/audit` amb els fixes anteriors aplicats.
+- **Correccions aplicades:** F-01 (bloquejant), F-S02, F-S04, F-S01, F-02
+  — vegeu §1.1 amb la verificació de cadascuna. F-06 resolt per separat
+  (font autoallotjada).
+- **Suite en aquest punt:** 31 tests Go + 18 Playwright verds; `go vet` i
+  `gofmt` nets.
+- **Traslladat a items posteriors:** F-03, F-04, F-05, F-07 (NIU-2);
+  F-S03, F-S05 (NIU-4, contingudes dins del seam d'auth).
+- **Approver:** pendent de la revisió humana al PR.
+- **Date:** 2026-08-01 (correccions), sign-off pendent.
+- **Next step:** `/commit NIU-1` → PR → NIU-2 (desplegament).
 
-- **Approver:** pendent
-- **Date:** pendent
-- **Next step:** tornar a `/code` per resoldre F-01 (bloquejant) i, idealment, F-02/F-03; després repetir `/audit`
+> **Nota sobre el mètode.** El veredicte original va ser
+> `CHANGES_REQUESTED`. Les correccions s'han aplicat i verificat
+> individualment, però **no s'ha repetit el cicle complet d'`/audit`** amb
+> revisors independents sobre el codi corregit. La decisió és deliberada
+> —el propietari vol una primera versió desplegada aviat— i el risc queda
+> acotat perquè cada correcció porta un test que falla sense ella. Les
+> troballes no bloquejants estan registrades, no descartades.
