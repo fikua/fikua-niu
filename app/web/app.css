@@ -5,14 +5,15 @@
   custom property names, no hex/px/ms reinvented) — see tasks.md T-16.
 
   FONT NOTE (T-16): the spec mandates self-hosted Nunito (.woff2) served
-  from app/web/fonts/ by this same Go binary — no Google Fonts, no
-  external font-src (CSP forbids it). The real .woff2 binaries could not
-  be obtained in this environment (no network access, and a CDN
-  substitute is explicitly forbidden) — see web/fonts/README.md. The
-  @font-face rule below is left commented out, exactly as in the design
-  system preview, and the app falls back to the spec's own fallback
-  stack. TODO: uncomment once Nunito-Regular.woff2 / Nunito-Bold.woff2
-  are placed in web/fonts/.
+  from app/web/fonts/ by this same Go binary — no Google Fonts link, no
+  external font-src (the CSP forbids it, and a CDN call would leak the
+  user's IP to a third party on every page load).
+
+  Resolved: fonts/Nunito-Variable-Latin.woff2 (OFL, latin subset, 39 KB)
+  is a VARIABLE font covering the whole 400–700 axis in a single file, so
+  it serves both weights the spec asks for (§8.2: Regular 400, Bold 700)
+  with one request instead of two. That is strictly better for NFR-06
+  (<1s on 3G) than the two static files originally planned.
 */
 
 :root {
@@ -99,22 +100,16 @@
   --layout-max-content: 960px;
 }
 
-/*
+/* Variable font: one file, whole 400–700 axis (see FONT NOTE above).
+   font-display: swap keeps text readable while it loads — required for
+   NFR-06 on a slow connection. */
 @font-face {
   font-family: "Nunito";
-  src: url("./fonts/Nunito-Regular.woff2") format("woff2");
-  font-weight: 400;
+  src: url("./fonts/Nunito-Variable-Latin.woff2") format("woff2-variations");
+  font-weight: 400 700;
   font-style: normal;
   font-display: swap;
 }
-@font-face {
-  font-family: "Nunito";
-  src: url("./fonts/Nunito-Bold.woff2") format("woff2");
-  font-weight: 700;
-  font-style: normal;
-  font-display: swap;
-}
-*/
 
 /* ---- sr-only utility, used by aria-live regions (§8.7) ---- */
 .sr-only {
