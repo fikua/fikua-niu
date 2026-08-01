@@ -42,6 +42,10 @@ Recorded so no agent re-opens a settled question:
 | Auth mechanism | Opaque session token, hash stored in DB | JWT | JWTs cannot be revoked without a blacklist — which is exactly the `sessions` table. Opaque token is both simpler and a better path to mobile (§9) |
 | Execution order | List → Deploy → OTEL → Auth | Auth first | Human wants early visible value. Mitigated by Cloudflare Access — see §8 |
 | API prefix | `/api/v1/` from day one | `/api/` | Costs nothing today, avoids a painful dual-URL period if a mobile app ever ships (§9) |
+| Duplicate items | **Blocked** (trimmed, case-insensitive, across both boxes) | Allow / warn-but-allow | Human chose a clean list over quantity-in-list. Resolved 2026-08-01 |
+| Sync between users | **Polling ~10s + refetch on focus** | SSE | Two people; polling is indistinguishable from real time and has far fewer moving parts. Resolved 2026-08-01 |
+| Quantity | **No field** — written inside the name (`"2 llets"`) | Numeric column + ± UI | Avoids a column, a migration, UI and test cases for something a string already solves. Resolved 2026-08-01 |
+| User identity in docs | **Generic** (`Usuari A` / `Usuari B`) | Real names | **The repo is public.** Real names and avatars are injected via env at deploy time. Resolved 2026-08-01 |
 
 ---
 
@@ -208,6 +212,11 @@ CREATE TABLE events (                      -- append-only, substrate for gamific
   costs ~20 lines now and saves a painful backfill later.
 - `users.password_hash` exists from the first migration even though
   NIU-4 is last; the seed just inserts placeholder rows until then.
+- **No quantity column.** Quantity lives inside `name` (`"2 llets"`).
+  Resolved with the human 2026-08-01 — a string already solves this, and
+  a column would cost a migration, UI and test cases for no gain.
+- `items` carries a **case-insensitive uniqueness constraint on the
+  trimmed name across both locations** (duplicates are blocked, §3).
 
 ### 2.5 API contract (v1)
 
@@ -237,18 +246,13 @@ client. Log detail server-side; return a generic message.
 
 ### 2.6 Concurrency between the two users
 
-`[OPEN]` — `/define` must resolve with the human:
+**RESOLVED 2026-08-01: polling.** `GET /api/v1/items` every ~10s plus a
+refetch on window focus. SSE was considered and rejected for v1 — for two
+people, polling is indistinguishable from real time and carries far fewer
+moving parts (no reconnection logic, no server-side connection state, no
+proxy buffering surprises). Revisit only if it feels stale in real use.
 
-- **Option A (recommended for v1):** poll `GET /api/v1/items` every ~10s
-  plus refetch on window focus. Trivial, robust, good enough for two
-  people.
-- **Option B:** Server-Sent Events for live updates. Nicer, more moving
-  parts.
-
-Recommendation: **A for v1**, revisit if it feels stale in real use. Do
-not build B speculatively.
-
-Regardless of choice, moves must be **idempotent**: `PATCH` sets
+Moves must be **idempotent**: `PATCH` sets
 `location` to an absolute value, never toggles. If both users move the
 same item, last write wins and both clients converge on refetch.
 
@@ -281,7 +285,15 @@ configure it as part of NIU-2, not as an afterthought.
 
 **Input validation (NIU-1):** item name trimmed, 1–200 chars after trim,
 reject empty/whitespace-only, allow Unicode (accents, emoji, apostrophes
-like `O'Neill`). Reject or coerce control characters.
+like `O'Neill`). Reject or coerce control characters. **Duplicates
+rejected** — trimmed, case-insensitive, across both boxes.
+
+**S11 — public repository.** `fikua/fikua-niu` is public. No real names,
+emails, household details, hostnames beyond `niu.fikua.com`, or any
+personal data may appear in any committed file. Documents refer to
+`Usuari A` / `Usuari B`; real identities are injected via environment
+variables at deploy time and never committed. This applies to code
+comments, seed data, test fixtures and screenshots.
 
 ---
 
@@ -521,8 +533,10 @@ Rules:
 - Add a 200-char name → accepted; 201 chars → rejected.
 - Add a name with accents, emoji, and an apostrophe (`O'Neill`) → stored
   and displayed verbatim.
-- Add a duplicate name → `[OPEN]` allow or warn? `/define` to decide with
-  the human. Recommendation: allow (real shopping lists have duplicates).
+- Add a duplicate name → **rejected** with a clear message. Matching is
+  trimmed and case-insensitive, and spans **both** boxes (an item already
+  in the pantry cannot be re-added to the shopping list — it is moved).
+  Edge cases to cover: `"llet"` vs `"Llet"` vs `"  LLET  "`.
 
 **Moving between boxes**
 - Select an item in *to buy* → moves to *pantry* in one operation;
@@ -567,6 +581,7 @@ Rules:
 | S8 | Item named `'; DROP TABLE items;--` is stored literally; table survives |
 | S9 | `docker history` / image scan shows no secret; repo has no `.env` |
 | S10 | Cloudflare Access policy verified manually before first public deploy |
+| S11 | Repo scan finds no real names, emails or personal data in any committed file |
 
 **Performance**
 - p95 `GET /api/v1/items` < 200ms with 500 items.
