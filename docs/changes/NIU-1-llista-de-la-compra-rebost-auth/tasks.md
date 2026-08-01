@@ -2,7 +2,7 @@
 artefact: tasks
 key: "NIU-1"
 title: "Llista de la compra ↔ rebost (auth stubbed)"
-status: "draft"
+status: "approved"
 owner: "task-planner"
 design_path: "./design.md"
 requirements_path: "./requirements.md"
