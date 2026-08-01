@@ -2,7 +2,7 @@
 artefact: design
 key: "NIU-1"
 title: "Llista de la compra ↔ rebost (auth stubbed)"
-status: "draft"
+status: "approved"
 owner: "software-architect"
 requirements_path: "./requirements.md"
 adr_count: 4
