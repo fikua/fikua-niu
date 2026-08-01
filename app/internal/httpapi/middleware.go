@@ -7,6 +7,32 @@ import (
 	"niu/internal/auth"
 )
 
+// maxRequestBody caps how much of a request body the server will read.
+// An item name is at most 200 characters, so even a generous JSON
+// envelope fits in a few KiB; 64 KiB leaves room to spare while keeping
+// the ceiling far below anything that could hurt.
+const maxRequestBody = 64 << 10
+
+// LimitBody caps every request body at maxRequestBody.
+//
+// Without it the handlers decode whatever arrives before any length check
+// runs, so a 128 MiB body was allocated in full and only then rejected
+// for exceeding 200 characters — measured at ~896 MiB of memory for a
+// single request. A handful in parallel would OOM the process on the
+// shared VPS and take SQLite down with it.
+//
+// Note this is not mitigated by putting the app behind Cloudflare Access:
+// the request comes from an already-authenticated legitimate user, and a
+// buggy client loop would do it by accident.
+func LimitBody(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Body != nil {
+			r.Body = http.MaxBytesReader(w, r.Body, maxRequestBody)
+		}
+		next.ServeHTTP(w, r)
+	})
+}
+
 // SecurityHeaders applies the mandatory security headers (S7, NFR-02) to
 // every response — API and static files alike. It MUST be mounted before
 // any other middleware on the root router (design.md §9).

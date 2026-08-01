@@ -58,6 +58,10 @@ type Repository interface {
 	List(ctx context.Context) ([]Item, error)
 	// Update applies a location move: sets location, moved_by, moved_at,
 	// updated_at and position, all inside a single transaction (ADR-01).
+	// Implementations MUST compute the destination position inside that
+	// same transaction; the position argument is a placeholder and is
+	// ignored, so that two concurrent moves into the same box cannot read
+	// the same MAX(position) and collide.
 	// Returns ErrNotFound if the id does not exist.
 	Update(ctx context.Context, id, userID int64, newLocation Location, position float64) (Item, error)
 	// Delete removes the row. Implementations MUST be idempotent: deleting

@@ -2,6 +2,7 @@ package integration
 
 import (
 	"net/http"
+	"runtime"
 	"strings"
 	"testing"
 )
@@ -133,5 +134,79 @@ func TestNoMutationViaGET(t *testing.T) {
 	after := listItems(t, srv.Server)
 	if len(before) != len(after) {
 		t.Fatalf("GET /items changed item count: before=%d after=%d", len(before), len(after))
+	}
+}
+
+// TestOversizedBodyRejectedWithoutBuffering covers F-S04: the request body
+// is capped by middleware, so a large payload is refused without the
+// process ever materialising it.
+//
+// Before the fix, a 128 MiB body was read in full and only then rejected
+// for exceeding 200 characters — around 896 MiB of memory for one
+// request. A handful in parallel would OOM the process on a shared VPS.
+// Cloudflare Access does not help here: the caller is an authenticated
+// legitimate user, and a buggy client loop does it by accident.
+func TestOversizedBodyRejectedWithoutBuffering(t *testing.T) {
+	srv := newTestServer(t, seedUserAID)
+
+	// 8 MiB is far above the 64 KiB cap and far below anything that
+	// would slow the test down.
+	huge := strings.Repeat("a", 8<<20)
+	body := `{"name":"` + huge + `"}`
+
+	var before, after runtime.MemStats
+	runtime.GC()
+	runtime.ReadMemStats(&before)
+
+	res, err := http.Post(srv.URL+"/api/v1/items", "application/json", strings.NewReader(body))
+	if err != nil {
+		t.Fatalf("POST oversized: %v", err)
+	}
+	defer res.Body.Close()
+
+	if res.StatusCode < 400 || res.StatusCode >= 500 {
+		t.Errorf("POST with an %d-byte body returned %d, want a 4xx rejection",
+			len(body), res.StatusCode)
+	}
+
+	runtime.GC()
+	runtime.ReadMemStats(&after)
+
+	// The cap is 64 KiB, so the handler must never have held the whole
+	// body. Allow generous headroom for test harness allocations while
+	// still failing loudly if the full payload were buffered.
+	const ceiling = 4 << 20
+	if grew := after.TotalAlloc - before.TotalAlloc; grew > uint64(len(body)) {
+		t.Errorf("request allocated %d bytes for a %d-byte body — the body appears to be fully buffered despite the %d-byte cap",
+			grew, len(body), ceiling)
+	}
+
+	// And nothing was stored.
+	if items := listItems(t, srv.Server); len(items) != 0 {
+		t.Errorf("oversized request created %d item(s), want 0", len(items))
+	}
+}
+
+// TestBidiOverrideRejectedEndToEnd is the HTTP-level half of EC-05: a
+// Trojan Source payload (CVE-2021-42574) must not reach storage. If it
+// did, the stored text and the rendered text would differ — user B would
+// read something other than what user A wrote.
+func TestBidiOverrideRejectedEndToEnd(t *testing.T) {
+	srv := newTestServer(t, seedUserAID)
+
+	// U+202E flips the rendering of what follows.
+	payload := `{"name":"Comprar ‮selpma 100"}`
+
+	res, err := http.Post(srv.URL+"/api/v1/items", "application/json", strings.NewReader(payload))
+	if err != nil {
+		t.Fatalf("POST bidi: %v", err)
+	}
+	defer res.Body.Close()
+
+	if res.StatusCode != http.StatusBadRequest {
+		t.Errorf("POST with a bidi override returned %d, want 400 (EC-05)", res.StatusCode)
+	}
+	if items := listItems(t, srv.Server); len(items) != 0 {
+		t.Errorf("bidi payload was stored (%d item(s)) — Trojan Source reaches the other user", len(items))
 	}
 }

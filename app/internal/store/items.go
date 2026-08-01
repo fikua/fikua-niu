@@ -217,13 +217,35 @@ func (r *ItemsRepository) List(ctx context.Context) ([]items.Item, error) {
 
 // Update applies a location move in a single transaction (ADR-01): last
 // write wins by server timestamp, no optimistic locking / If-Match.
-func (r *ItemsRepository) Update(ctx context.Context, id, userID int64, newLocation items.Location, position float64) (items.Item, error) {
-	res, err := r.db.ExecContext(ctx,
+// The position argument is IGNORED — it is computed here, inside the
+// transaction, from the destination's current MAX(position). ADR-01
+// requires the move to be a single transaction: reading MAX(position)
+// outside it and passing the result in would leave a window where a
+// concurrent move to the same box computes the same position, and both
+// rows land on top of each other. The parameter is kept so the Repository
+// interface stays stable for callers that do not care.
+func (r *ItemsRepository) Update(ctx context.Context, id, userID int64, newLocation items.Location, _ float64) (items.Item, error) {
+	tx, err := r.db.BeginTx(ctx, nil)
+	if err != nil {
+		return items.Item{}, fmt.Errorf("store: begin move tx: %w", err)
+	}
+	defer tx.Rollback() //nolint:errcheck // no-op once Commit succeeded
+
+	// COALESCE covers the empty-destination case: first item lands at 1.0.
+	var nextPosition float64
+	if err := tx.QueryRowContext(ctx,
+		`SELECT COALESCE(MAX(position), 0) + 1.0 FROM items WHERE location = ?`,
+		string(newLocation),
+	).Scan(&nextPosition); err != nil {
+		return items.Item{}, fmt.Errorf("store: next position: %w", err)
+	}
+
+	res, err := tx.ExecContext(ctx,
 		`UPDATE items
 		 SET location = ?, moved_by = ?, moved_at = CURRENT_TIMESTAMP,
 		     updated_at = CURRENT_TIMESTAMP, position = ?
 		 WHERE id = ?`,
-		string(newLocation), userID, position, id,
+		string(newLocation), userID, nextPosition, id,
 	)
 	if err != nil {
 		return items.Item{}, fmt.Errorf("store: update item: %w", err)
@@ -234,6 +256,10 @@ func (r *ItemsRepository) Update(ctx context.Context, id, userID int64, newLocat
 	}
 	if n == 0 {
 		return items.Item{}, items.ErrNotFound{ID: id}
+	}
+
+	if err := tx.Commit(); err != nil {
+		return items.Item{}, fmt.Errorf("store: commit move: %w", err)
 	}
 	return r.Get(ctx, id)
 }

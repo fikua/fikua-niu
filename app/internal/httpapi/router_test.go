@@ -1,13 +1,17 @@
 package httpapi
 
 import (
+	"context"
 	"net/http"
+	"net/http/httptest"
+	"strings"
 	"testing"
 	"testing/fstest"
 
 	"github.com/go-chi/chi/v5"
 
 	"niu/internal/auth"
+	"niu/internal/items"
 )
 
 // TestNoMutatingGETRoutes introspects the chi route table (EC-08/NFR-04)
@@ -22,44 +26,129 @@ func TestNoMutatingGETRoutes(t *testing.T) {
 		t.Fatalf("router does not implement chi.Router (got %T)", router)
 	}
 
-	mutatingMethods := map[string]bool{
-		http.MethodPost:   true,
-		http.MethodPut:    true,
-		http.MethodPatch:  true,
-		http.MethodDelete: true,
-	}
-
-	err := chi.Walk(chiRouter, func(method, route string, handler http.Handler, middlewares ...func(http.Handler) http.Handler) error {
-		if method == http.MethodGet && mutatingMethods[method] {
-			t.Errorf("route %s %s: GET incorrectly classified as mutating", method, route)
-		}
-		return nil
-	})
-	if err != nil {
-		t.Fatalf("chi.Walk: %v", err)
-	}
-
-	// Explicitly confirm the known GET routes exist and are read-only by
-	// construction (they call Service.List/CurrentUser/Healthy, never
-	// Add/Move/Delete — verified by code review / grep, not reflection,
-	// since Go has no runtime way to inspect closure bodies).
+	// Collect the actual routing table, so the assertions below are about
+	// what is really registered rather than about the shape of this test.
 	getRoutes := map[string]bool{}
-	err = chi.Walk(chiRouter, func(method, route string, handler http.Handler, middlewares ...func(http.Handler) http.Handler) error {
+	allRoutes := map[string][]string{}
+	err := chi.Walk(chiRouter, func(method, route string, handler http.Handler, middlewares ...func(http.Handler) http.Handler) error {
 		if method == http.MethodGet {
 			getRoutes[route] = true
 		}
+		allRoutes[route] = append(allRoutes[route], method)
 		return nil
 	})
 	if err != nil {
 		t.Fatalf("chi.Walk: %v", err)
 	}
 
-	wantGET := []string{"/healthz", "/api/v1/me", "/api/v1/items/"}
-	for _, want := range wantGET {
-		if !getRoutes[want] {
-			t.Errorf("expected GET route %q to be registered, got routes: %+v", want, getRoutes)
+	// The GET surface is a closed set. A new GET route added without a
+	// deliberate update here fails the test — which is the point: EC-08
+	// must break loudly if someone wires a mutation behind a GET.
+	wantGET := map[string]bool{
+		"/healthz":       true,
+		"/api/v1/me":     true,
+		"/api/v1/items/": true,
+	}
+	for route := range getRoutes {
+		if !wantGET[route] {
+			t.Errorf("unexpected GET route %q registered — every GET must be read-only (EC-08/NFR-04); "+
+				"if this route is genuinely read-only, add it to wantGET deliberately", route)
 		}
 	}
+	for route := range wantGET {
+		if !getRoutes[route] {
+			t.Errorf("expected GET route %q to be registered, got: %+v", route, getRoutes)
+		}
+	}
+}
+
+// TestGETRequestsDoNotMutateState is the behavioural half of EC-08/NFR-04.
+// The routing-table check above proves which GET routes exist; this proves
+// that exercising every one of them leaves the data untouched. Both are
+// needed: a route can be registered as GET and still mutate inside its
+// handler, and Go offers no way to inspect a closure body at runtime.
+func TestGETRequestsDoNotMutateState(t *testing.T) {
+	repo := &spyRepo{}
+	svc := items.NewService(repo, &spySink{}, &spyUsers{})
+	router := NewRouter(svc, fakeHealthChecker{}, fakeAuthenticator{}, fstest.MapFS{})
+
+	chiRouter, ok := router.(chi.Router)
+	if !ok {
+		t.Fatalf("router does not implement chi.Router (got %T)", router)
+	}
+
+	var getPaths []string
+	if err := chi.Walk(chiRouter, func(method, route string, _ http.Handler, _ ...func(http.Handler) http.Handler) error {
+		if method == http.MethodGet {
+			// chi reports the pattern; turn "/api/v1/items/" into a
+			// concrete request path.
+			getPaths = append(getPaths, strings.TrimSuffix(route, "/"))
+		}
+		return nil
+	}); err != nil {
+		t.Fatalf("chi.Walk: %v", err)
+	}
+	if len(getPaths) == 0 {
+		t.Fatal("no GET routes discovered — the walk is not seeing the routing table")
+	}
+
+	for _, path := range getPaths {
+		req := httptest.NewRequest(http.MethodGet, path, nil)
+		rec := httptest.NewRecorder()
+		router.ServeHTTP(rec, req)
+	}
+
+	if len(repo.mutations) != 0 {
+		t.Errorf("GET requests triggered %d mutating repository call(s) (%v); "+
+			"no GET may create, move or delete (EC-08/NFR-04)",
+			len(repo.mutations), repo.mutations)
+	}
+}
+
+// spyRepo records every mutating call so a test can assert none happened.
+// Read methods return empty results; the point is what gets written, not
+// what comes back.
+type spyRepo struct {
+	mutations []string
+}
+
+func (r *spyRepo) Create(_ context.Context, _ int64, _, _ string) (items.Item, error) {
+	r.mutations = append(r.mutations, "Create")
+	return items.Item{}, nil
+}
+
+func (r *spyRepo) Update(_ context.Context, _, _ int64, _ items.Location, _ float64) (items.Item, error) {
+	r.mutations = append(r.mutations, "Update")
+	return items.Item{}, nil
+}
+
+func (r *spyRepo) Delete(_ context.Context, _ int64) (bool, error) {
+	r.mutations = append(r.mutations, "Delete")
+	return false, nil
+}
+
+func (r *spyRepo) Get(_ context.Context, _ int64) (items.Item, error) {
+	return items.Item{}, items.ErrNotFound{}
+}
+
+func (r *spyRepo) List(_ context.Context) ([]items.Item, error) { return nil, nil }
+
+func (r *spyRepo) ExistsByNormalizedName(_ context.Context, _ string) (bool, items.Location, error) {
+	return false, "", nil
+}
+
+func (r *spyRepo) MaxPosition(_ context.Context, _ items.Location) (float64, bool, error) {
+	return 0, false, nil
+}
+
+type spySink struct{}
+
+func (spySink) Record(_ context.Context, _ int64, _ string, _ any) error { return nil }
+
+type spyUsers struct{}
+
+func (spyUsers) GetUser(_ context.Context, id int64) (items.User, error) {
+	return items.User{ID: id, DisplayName: "Usuari A", AvatarEmoji: "🐦"}, nil
 }
 
 type fakeHealthChecker struct{}

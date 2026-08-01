@@ -39,6 +39,9 @@ func NewRouter(svc *items.Service, health HealthChecker, authenticator auth.Auth
 	// SecurityHeaders MUST be the outermost middleware — applies to API
 	// and static responses alike (S7, NFR-02).
 	r.Use(SecurityHeaders)
+	// Body cap sits high in the chain so it applies before any handler
+	// reads — the point is to never materialise a huge body at all.
+	r.Use(LimitBody)
 	r.Use(Recoverer)
 	r.Use(chimw.Logger)
 

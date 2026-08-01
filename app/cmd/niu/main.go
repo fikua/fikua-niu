@@ -10,6 +10,7 @@ import (
 	"log/slog"
 	"net/http"
 	"os"
+	"time"
 
 	niu "niu"
 	"niu/internal/auth"
@@ -56,7 +57,19 @@ func run() error {
 	addr := ":" + cfg.Port
 	slog.Info("niu: listening", "addr", addr, "env", cfg.Env)
 
-	srv := &http.Server{Addr: addr, Handler: router}
+	// Timeouts are not optional on a public listener: without them a
+	// single slow or stalled connection holds a goroutine and its buffers
+	// open indefinitely, and enough of them exhaust the process. The
+	// values are generous for a two-person app on a shared VPS.
+	srv := &http.Server{
+		Addr:              addr,
+		Handler:           router,
+		ReadHeaderTimeout: 10 * time.Second,
+		ReadTimeout:       30 * time.Second,
+		WriteTimeout:      30 * time.Second,
+		IdleTimeout:       120 * time.Second,
+		MaxHeaderBytes:    1 << 16, // 64 KiB
+	}
 	if err := srv.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
 		return err
 	}

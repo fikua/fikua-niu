@@ -109,6 +109,58 @@ func TestService_Add_ControlChars(t *testing.T) {
 	}
 }
 
+// TestService_Add_HostileInvisibleChars covers EC-05 for the characters an
+// earlier ASCII-only check let through. Each of these was verified to
+// return 201 before the fix.
+func TestService_Add_HostileInvisibleChars(t *testing.T) {
+	cases := []struct {
+		name  string
+		input string
+		why   string
+	}{
+		{"embedded newline", "Llet\nPa", "renders as two lines in one item"},
+		{"embedded carriage return", "Llet\rPa", "same, and can confuse logs"},
+		{"embedded tab", "Llet\tPa", "arbitrary whitespace mid-name"},
+		{"RTL override", "Comprar \u202Eselpm\u00e0 100", "Trojan Source: displays reversed, CVE-2021-42574"},
+		{"LTR override", "Llet \u202DPa", "same class of bidi spoofing"},
+		{"first strong isolate", "Llet \u2066Pa", "bidi isolate, same effect"},
+		{"zero-width space", "po\u200Bma", "invisible; bypasses the EC-06 duplicate check"},
+		{"zero-width non-joiner", "po\u200Cma", "same bypass"},
+		{"byte order mark", "Llet\uFEFF", "invisible trailing character"},
+		{"C1 control", "Llet\u0085Pa", "non-ASCII control, missed by an ASCII-range check"},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			repo := newFakeRepo()
+			svc := NewService(repo, repo, repo)
+
+			_, err := svc.Add(t.Context(), 1, tc.input)
+			var valErr ErrValidation
+			if !errorsAs(err, &valErr) || valErr.Code != ValidationControlChars {
+				t.Fatalf("Add(%q) = %v, want rejection — %s", tc.input, err, tc.why)
+			}
+		})
+	}
+}
+
+// TestService_Add_ZeroWidthCannotBypassDuplicates is the concrete attack
+// behind the zero-width case above: without the fix, "po<ZWSP>ma"
+// normalises differently from "poma" and slips past the EC-06 rule.
+func TestService_Add_ZeroWidthCannotBypassDuplicates(t *testing.T) {
+	repo := newFakeRepo()
+	svc := NewService(repo, repo, repo)
+
+	if _, err := svc.Add(t.Context(), 1, "poma"); err != nil {
+		t.Fatalf("Add(poma) = %v, want success", err)
+	}
+
+	_, err := svc.Add(t.Context(), 1, "po\u200Bma")
+	if err == nil {
+		t.Fatal("Add(po<ZWSP>ma) succeeded — a zero-width space bypassed the duplicate rule (EC-06)")
+	}
+}
+
 func TestService_Add_UnicodeCorpus(t *testing.T) {
 	repo := newFakeRepo()
 	svc := NewService(repo, repo, repo)

@@ -3,19 +3,49 @@ package items
 import (
 	"context"
 	"strings"
+	"unicode"
 	"unicode/utf8"
 )
 
 const maxNameLength = 200
 
-// controlCharsPattern matches ASCII control bytes excluding common
-// whitespace (tab/newline/CR are already handled by TrimSpace trimming
-// leading/trailing space; embedded control bytes anywhere in the name are
-// rejected per EC-05). Mirrors the reference regex in
-// design-system/screen-desktop.html: [\x00-\x08\x0B\x0C\x0E-\x1F].
+// hasControlChars reports whether s contains any character that must not
+// be stored in an item name (EC-05).
+//
+// This deliberately goes well beyond the ASCII control range. An earlier
+// version checked only [\x00-\x08\x0B\x0C\x0E-\x1F], which let three
+// classes of hostile input through:
+//
+//  1. Embedded \n, \r and \t. TrimSpace only strips them at the ends, so
+//     "Llet\n\n\nPa" was stored as a single item rendering across lines.
+//  2. Bidirectional overrides (U+202A-U+202E, U+2066-U+2069). These make
+//     stored text render differently from what it is — "Comprar
+//     <U+202E>selpmà 100" displays reversed, so what the other person
+//     reads is not what is in the database. This is Trojan Source
+//     (CVE-2021-42574).
+//  3. Zero-width characters (U+200B-U+200D, U+FEFF). Invisible, so
+//     "po<U+200B>ma" looks identical to "poma" but normalises
+//     differently — a one-character bypass of the EC-06 duplicate rule.
+//
+// Unicode format characters (category Cf) cover the bidi and zero-width
+// cases; unicode.IsControl covers C0 and C1. Neither catches the other,
+// so both are needed.
 func hasControlChars(s string) bool {
 	for _, r := range s {
-		if (r >= 0x00 && r <= 0x08) || r == 0x0B || r == 0x0C || (r >= 0x0E && r <= 0x1F) {
+		switch {
+		case r == '\n' || r == '\r' || r == '\t':
+			// Rejected anywhere, including mid-string. TrimSpace has
+			// already removed them from the ends by this point, so
+			// anything left here is embedded.
+			return true
+		case unicode.IsControl(r):
+			// C0 (U+0000-U+001F) and C1 (U+0080-U+009F).
+			return true
+		case unicode.Is(unicode.Cf, r):
+			// Format characters: bidi overrides, zero-width joiners,
+			// BOM. Note this also excludes U+200D, which some emoji
+			// sequences use to join glyphs — acceptable here, since an
+			// item name is short text, not a rich emoji composition.
 			return true
 		}
 	}
@@ -90,13 +120,12 @@ func (s *Service) Add(ctx context.Context, userID int64, rawName string) (Item, 
 // Move updates an item's location (design.md §5 Flux 2; ADR-01; covers
 // AC-02, AC-03, AC-04, AC-09, EC-12).
 func (s *Service) Move(ctx context.Context, userID, id int64, newLocation Location) (Item, error) {
-	maxPos, _, err := s.repo.MaxPosition(ctx, newLocation)
-	if err != nil {
-		return Item{}, err
-	}
-	newPosition := maxPos + 1.0
-
-	item, err := s.repo.Update(ctx, id, userID, newLocation, newPosition)
+	// Position is computed by the repository inside the move transaction
+	// (ADR-01). Reading MAX(position) here and passing it down would put
+	// the read outside the transaction, so two concurrent moves into the
+	// same box could pick the same position. The zero passed below is a
+	// placeholder the repository ignores.
+	item, err := s.repo.Update(ctx, id, userID, newLocation, 0)
 	if err != nil {
 		return Item{}, err
 	}
