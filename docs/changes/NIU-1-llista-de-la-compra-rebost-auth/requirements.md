@@ -2,7 +2,7 @@
 artefact: requirements
 key: "NIU-1"
 title: "Llista de la compra ↔ rebost (auth stubbed)"
-status: "draft"
+status: "approved"
 owner: "product-manager + qa-engineer"
 proposal_path: "./proposal.md"
 ac_count: 16

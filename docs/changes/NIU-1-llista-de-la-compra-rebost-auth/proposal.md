@@ -3,7 +3,7 @@ artefact: proposal
 key: "NIU-1"
 type: "story"
 title: "Llista de la compra ↔ rebost (auth stubbed)"
-status: "draft"
+status: "approved"
 owner: "product-manager"
 parent_key: null
 related_keys: ["NIU-2", "NIU-3", "NIU-4"]
