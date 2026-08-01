@@ -1,0 +1,82 @@
+<!DOCTYPE html>
+<html lang="ca">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>niu</title>
+<link rel="stylesheet" href="./app.css">
+<!-- Preload the full ES module graph in parallel (design.md §8: no
+     build step, no bundler). Without this, the browser only discovers
+     nested imports (store.js -> render.js -> flip.js, etc.) after
+     fetching and parsing each parent module in turn, creating a
+     multi-round-trip waterfall that blows past the <1s NFR-06 budget on
+     a high-latency connection (verified via Playwright 3G emulation,
+     T-30). modulepreload lets the browser fetch every module concurrently
+     up front instead. -->
+<link rel="modulepreload" href="./js/api.js">
+<link rel="modulepreload" href="./js/a11y.js">
+<link rel="modulepreload" href="./js/flip.js">
+<link rel="modulepreload" href="./js/confetti.js">
+<link rel="modulepreload" href="./js/render.js">
+<link rel="modulepreload" href="./js/store.js">
+<link rel="modulepreload" href="./js/tabs.js">
+<link rel="modulepreload" href="./js/main.js">
+</head>
+<body>
+  <div class="page">
+    <header class="app-header">
+      <span class="wordmark">niu</span>
+      <div class="user-chip" id="user-chip">
+        <span class="avatar" aria-hidden="true" id="user-avatar">🐦</span>
+        <span id="user-name"></span>
+      </div>
+    </header>
+
+    <!-- §8.7 aria-live region: shared, immediately after header, before both boxes -->
+    <div id="live-region" class="sr-only" role="status" aria-live="polite" aria-atomic="true"></div>
+
+    <!-- Mobile tab bar (§8.3.2, EC-16). Hidden on desktop via app.css. -->
+    <div class="tabbar" role="tablist" aria-label="Seccions">
+      <button class="tab is-active" data-panel="shopping" role="tab" aria-selected="true" aria-controls="box-shopping" type="button">
+        🛒 Comprar <span id="tab-count-shopping">(0)</span>
+      </button>
+      <button class="tab" data-panel="pantry" role="tab" aria-selected="false" aria-controls="box-pantry" type="button">
+        🥫 Rebost <span id="tab-count-pantry">(0)</span>
+      </button>
+    </div>
+
+    <div class="boxes">
+      <section class="box panel is-visible" id="box-shopping" role="region" aria-label="A comprar">
+        <div class="box-header">
+          <h2 class="box-title"><span aria-hidden="true">🛒</span> A comprar</h2>
+          <span class="box-count" id="count-shopping">(0)</span>
+        </div>
+        <hr>
+        <ul class="item-list" id="list-shopping"></ul>
+        <div class="add-input-group" id="add-group">
+          <input type="text" id="add-input" placeholder="+ afegir un ítem…" aria-label="Afegir un ítem" maxlength="200">
+          <button class="add-btn" id="add-btn" type="button">Afegir</button>
+        </div>
+        <div class="add-footer">
+          <span class="error-msg" id="add-error" role="alert" hidden></span>
+          <span class="counter" id="add-counter">0/200</span>
+        </div>
+      </section>
+
+      <section class="box panel" id="box-pantry" role="region" aria-label="Rebost">
+        <div class="box-header">
+          <h2 class="box-title"><span aria-hidden="true">🥫</span> Rebost</h2>
+          <span class="box-count" id="count-pantry">(0)</span>
+        </div>
+        <hr>
+        <ul class="item-list" id="list-pantry"></ul>
+      </section>
+    </div>
+  </div>
+
+  <div class="toast-wrap" id="toast-wrap"></div>
+  <div id="confetti-layer" aria-hidden="true"></div>
+
+  <script type="module" src="./js/main.js"></script>
+</body>
+</html>

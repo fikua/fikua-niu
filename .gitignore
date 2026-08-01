@@ -20,5 +20,12 @@ dist/
 *.out
 vendor/
 
+# E2E (Playwright)
+app/tests/e2e/node_modules/
+app/tests/e2e/test-results/
+app/tests/e2e/.last-run.json
+app/tests/e2e/playwright-report/
+app/tests/e2e/.cache/
+
 # Sistema
 .DS_Store

@@ -1,0 +1,43 @@
+// T-33 — automated accessibility audit (axe-core) covering EC-17/A11Y-02
+// (colour contrast) and general WCAG 2.2 AA rule violations across both
+// the desktop and mobile layouts, with at least one item present in each
+// box (so ItemRow/Avatar/delete-btn contrast is actually exercised, not
+// just the empty state).
+//
+// This automates the tooling half of T-33. The screen-reader-in-hand
+// verification (A11Y-03) and the final human sign-off remain manual —
+// documented in this file's header and in STATUS.md at archive time.
+import { test, expect } from '@playwright/test';
+import AxeBuilder from '@axe-core/playwright';
+import { uniqueName, addItem, cleanupItem } from './helpers.js';
+
+test.describe('axe-core WCAG 2.2 AA audit', () => {
+  test('desktop layout has no automatically-detectable accessibility violations', async ({ page }) => {
+    const name = uniqueName('A11yDesktop');
+    await page.goto('/');
+    await addItem(page, name);
+
+    const results = await new AxeBuilder({ page })
+      .withTags(['wcag2a', 'wcag2aa', 'wcag22aa'])
+      .analyze();
+
+    expect(results.violations, JSON.stringify(results.violations, null, 2)).toEqual([]);
+
+    await cleanupItem(page, name);
+  });
+
+  test('mobile layout has no automatically-detectable accessibility violations', async ({ page }) => {
+    await page.setViewportSize({ width: 375, height: 667 });
+    const name = uniqueName('A11yMobile');
+    await page.goto('/');
+    await addItem(page, name);
+
+    const results = await new AxeBuilder({ page })
+      .withTags(['wcag2a', 'wcag2aa', 'wcag22aa'])
+      .analyze();
+
+    expect(results.violations, JSON.stringify(results.violations, null, 2)).toEqual([]);
+
+    await cleanupItem(page, name);
+  });
+});

@@ -117,23 +117,23 @@ updated: "2026-08-01"
 
 ### Fase 0 — Fonaments (mòdul Go, migracions, esquelet)
 
-- [ ] **T-01** — Inicialitzar `app/go.mod` (Go 1.25) amb les dependències
+- [x] **T-01** — Inicialitzar `app/go.mod` (Go 1.25) amb les dependències
   exactes de `design.md` §1/§2.3: `github.com/go-chi/chi/v5`,
   `modernc.org/sqlite`, `github.com/pressly/goose/v3`,
   `golang.org/x/text/unicode/norm` (obligatòria per NFC, ADR-02). Crear
   l'esquelet de directoris `cmd/niu/`, `internal/{config,store,items,auth,httpapi}`,
   `migrations/`, `web/`, `tests/`. · *covers:* NFR-11 (base)
-- [ ] **T-02** — Escriure les migracions goose `app/migrations/001_initial_schema.sql`
+- [x] **T-02** — Escriure les migracions goose `app/migrations/001_initial_schema.sql`
   i `app/migrations/002_seed_users.sql` amb el DDL exacte de `design.md`
   §6.2 (taules `users`, `sessions`, `items` amb columnes `name_normalized`
   i `updated_at`, `events`; índex únic `idx_items_name_normalized`; seed
   `Usuari A`/`Usuari B` amb hash placeholder). **DELETE dur, sense
   `deleted_at`** — decisió humana confirmada. · *covers:* EC-14
-- [ ] **T-03** — Implementar `internal/config`: parsing d'entorn
+- [x] **T-03** — Implementar `internal/config`: parsing d'entorn
   (`NIU_PORT`, `NIU_DB_PATH`, `NIU_ENV`), validació fail-fast segons
   `PLAN.md` §6 (en NIU-1 pràcticament res és requerit — `NIU_SESSION_SECRET`/
   `NIU_USER_*_HASH` són "yes (NIU-4)", no aquí).
-- [ ] **T-04** — Implementar `internal/store`: obertura SQLite amb
+- [x] **T-04** — Implementar `internal/store`: obertura SQLite amb
   `modernc.org/sqlite`, DSN amb `_pragma=journal_mode(WAL)`,
   `_pragma=busy_timeout(5000)`, `_pragma=foreign_keys(on)` (design.md §7);
   wiring de goose embedded (`//go:embed migrations/*.sql`); **cap
@@ -144,14 +144,14 @@ updated: "2026-08-01"
 
 ### Fase 1 — Domini `internal/items`
 
-- [ ] **T-05** — Definir el domini `internal/items`: tipus `Item`, `User`
+- [x] **T-05** — Definir el domini `internal/items`: tipus `Item`, `User`
   (referència lleugera), interfícies `Repository` (`Create`, `Get`,
   `List`, `Update`, `Delete`, `ExistsByNormalizedName`) i `EventSink`
   (`Record(kind, payload)`), sense importar `net/http` ni
   `database/sql` (design.md §4). Implementar la normalització ADR-02:
   `norm.NFC.String(...)` → `strings.TrimSpace` → `strings.ToLower`, en
   aquest ordre exacte. · *covers:* AC-06 (base d'autoria), EC-06 (base)
-- [ ] **T-06** — Implementar `items.Service.Add(ctx, userID, rawName)`:
+- [x] **T-06** — Implementar `items.Service.Add(ctx, userID, rawName)`:
   retallar espais, validar longitud 1–200 (post-trim), rebutjar
   caràcters de control, normalitzar (T-05), comprovar
   `ExistsByNormalizedName` dins la mateixa transacció que l'`INSERT`,
@@ -159,18 +159,18 @@ updated: "2026-08-01"
   MAX(position) WHERE location='shopping' + 1.0` (o `1.0` si buida);
   escriure event `item_added`. · *covers:* AC-01, EC-01, EC-02, EC-03,
   EC-04, EC-05, EC-06, EC-07
-- [ ] **T-07** — Implementar `items.Service.Move(ctx, userID, id,
+- [x] **T-07** — Implementar `items.Service.Move(ctx, userID, id,
   newLocation)`: transacció única `UPDATE items SET location=?,
   moved_by=?, moved_at=CURRENT_TIMESTAMP, updated_at=CURRENT_TIMESTAMP,
   position=? WHERE id=?` (ADR-01 — última escriptura per timestamp de
   servidor, sense `If-Match`/versió); retornar `ErrNotFound` si l'`id`
   no existeix; escriure event `item_moved`. · *covers:* AC-02, AC-03,
   AC-04, AC-09, EC-12
-- [ ] **T-08** — Implementar `items.Service.Delete(ctx, userID, id)`:
+- [x] **T-08** — Implementar `items.Service.Delete(ctx, userID, id)`:
   idempotent — segona crida sobre un `id` ja eliminat també retorna èxit
   (`204` equivalent), sense error; escriure event `item_deleted` només
   quan la fila existia. · *covers:* AC-05, EC-11
-- [ ] **T-09** — Implementar `items.Service.CurrentUser` (delega a
+- [x] **T-09** — Implementar `items.Service.CurrentUser` (delega a
   `auth.Authenticator`, vegeu T-10) i `items.Service.List(ctx)`: una
   sola consulta `SELECT` amb `JOIN` a `users` (per `added_by`/`moved_by`),
   `ORDER BY location, position`, sense N+1. · *covers:* AC-07 (base),
@@ -178,7 +178,7 @@ updated: "2026-08-01"
 
 ### Fase 2 — Auth stub i seam d'interfície
 
-- [ ] **T-10** — Definir `internal/auth.Authenticator` (interfície:
+- [x] **T-10** — Definir `internal/auth.Authenticator` (interfície:
   `CurrentUser(r *http.Request) (User, error)`) i
   `auth.StubAuthenticator{UserID: <seed A>}` que ignora la petició i
   retorna sempre el mateix usuari (ADR-03). Cap lògica inline als
@@ -187,34 +187,34 @@ updated: "2026-08-01"
 
 ### Fase 3 — HTTP API
 
-- [ ] **T-11** — Muntar el router `chi/v5` a `internal/httpapi`:
+- [x] **T-11** — Muntar el router `chi/v5` a `internal/httpapi`:
   middleware `WithCurrentUser(authenticator)` que injecta l'usuari al
   context via `auth.FromContext`; middleware `chi/middleware.Recoverer`
   - wrapper propi que mai serialitza `err.Error()` intern — respon
   `500 {"error":{"code":"internal_error","message":"S'ha produït un
   error inesperat."}}` i registra el detall només al log del servidor
   (`log/slog` a stdout). · *covers:* NFR-08 (base d'errors uniformes)
-- [ ] **T-12** — Implementar el middleware `httpapi.SecurityHeaders`
+- [x] **T-12** — Implementar el middleware `httpapi.SecurityHeaders`
   aplicat a **totes** les respostes (API i estàtics), abans de
   qualsevol altre middleware: `Strict-Transport-Security`,
   `X-Content-Type-Options: nosniff`, `X-Frame-Options: DENY`,
   `Referrer-Policy: no-referrer`, `Content-Security-Policy` exacta de
   `design.md` §9 (sense `'unsafe-inline'` enlloc). · *covers:* EC-15
   (base de resiliència, no directament — vegeu T-29 per al test real)
-- [ ] **T-13** — Implementar handlers `GET/POST /api/v1/items` i `PATCH/DELETE
+- [x] **T-13** — Implementar handlers `GET/POST /api/v1/items` i `PATCH/DELETE
   /api/v1/items/{id}`: deserialitzar/serialitzar JSON, delegar a
   `items.Service`, mapar `ErrDuplicate`→`409 duplicate_item`,
   `ErrNotFound`→`404 not_found`, error de validació→`400
   validation_failed`, envelope d'error uniforme
   `{"error":{"code","message"}}` (design.md §6.1). Confirmar que **cap
   ruta `GET` crida mai** `Add/Move/Delete`.
-- [ ] **T-14** — Implementar `GET /api/v1/me` (delega a
+- [x] **T-14** — Implementar `GET /api/v1/me` (delega a
   `auth.Authenticator.CurrentUser`) i `GET /healthz` (`SELECT 1` contra
   SQLite; `200` si èxit, `503` en cas contrari, REL-03). Escriure el
   test d'integració que introspecciona la taula de rutes `chi` i
   assegura que cap handler `GET` coincideix amb un mètode mutador
   (EC-08). · *covers:* AC-07 (base), EC-08, NFR-04, NFR-08
-- [ ] **T-15** — Muntar `embed.FS` sobre `web/` a `cmd/niu/main.go`
+- [x] **T-15** — Muntar `embed.FS` sobre `web/` a `cmd/niu/main.go`
   (`//go:embed web`), servir-lo amb `http.FileServer(http.FS(webFS))`
   arrelat a `/` per qualsevol ruta que no comenci per `/api/v1/` ni
   sigui `/healthz` (design.md §8). Cablejar el `main.go` complet:
@@ -223,14 +223,14 @@ updated: "2026-08-01"
 
 ### Fase 4 — Frontend (`app/web/`) — port del design-system
 
-- [ ] **T-16** — Copiar literalment els valors de `design-system/tokens.css`
+- [x] **T-16** — Copiar literalment els valors de `design-system/tokens.css`
   a `app/web/app.css` (mateixos noms de custom property, cap hex/px/ms
   reinventat). Autoallotjar els fitxers `.woff2` de Nunito
   (`Nunito-Regular.woff2`, `Nunito-Bold.woff2`) a `app/web/fonts/` —
   **mai** una crida a Google Fonts CDN (la CSP ho prohibeix). Aplicar
   l'escala tipogràfica i el `@font-face` amb el fallback stack de
   `proposal.md` §8.2.
-- [ ] **T-17** — Crear `app/web/index.html`: marcatge base, capçalera,
+- [x] **T-17** — Crear `app/web/index.html`: marcatge base, capçalera,
   dues caixes ("A comprar"/"Rebost") amb `role="region"`
   `aria-label`, regió `aria-live="polite" aria-atomic="true"`
   visualment oculta (tècnica `sr-only`) immediatament després de la
@@ -238,7 +238,7 @@ updated: "2026-08-01"
   i classes idèntiques a `design-system/screen-desktop.html` /
   `screen-mobile.html` (`.item-row`, `.box`, `#list-shopping`,
   `#list-pantry`, `#live-region`).
-- [ ] **T-18** — Crear `app/web/js/flip.js`: port directe de
+- [x] **T-18** — Crear `app/web/js/flip.js`: port directe de
   `captureRects()`/`playFlip()` de `design-system/screen-desktop.html`
   (FLIP amb Web Animations API, `transform`, 250ms, `ease-out`;
   detecció de `prefers-reduced-motion` → cross-fade 150ms+150ms
@@ -247,7 +247,7 @@ updated: "2026-08-01"
   (fila desapareix de la pestanya activa amb FLIP, apareix a la
   inactiva amb `.just-added` fade-in, sense `transform` cap a
   coordenades ocultes).
-- [ ] **T-19** — Crear `app/web/js/store.js`: estat en memòria (`items`
+- [x] **T-19** — Crear `app/web/js/store.js`: estat en memòria (`items`
   array), `moveItemOptimistic(id, newLocation)` (actualitza abans de
   rebre resposta, `render({flipFromRects})`, `await api.moveItem(...)`,
   rollback + `render` invers + `toast.show` en cas d'error),
@@ -256,7 +256,7 @@ updated: "2026-08-01"
   dispara confeti només en la transició no-buit→buit causada per acció,
   mai en càrrega inicial (EC-13), es reinicia quan torna a haver-hi
   ítems.
-- [ ] **T-20** — Crear `app/web/js/api.js` (fetch wrappers: `getItems()`,
+- [x] **T-20** — Crear `app/web/js/api.js` (fetch wrappers: `getItems()`,
   `addItem()`, `moveItem()`, `deleteItem()`, `getMe()`) i
   `app/web/js/render.js` (`render()`, `renderRow()`,
   `renderEmptyState()`, `renderAvatars()` — port directe de la lògica
@@ -264,19 +264,19 @@ updated: "2026-08-01"
   amb dades d'usuari** — tots els nodes amb `document.createElement` +
   `.textContent`. Implementar els missatges d'error exactes de
   `proposal.md` §8.4.3 (validació, duplicat amb nom de caixa).
-- [ ] **T-21** — Crear `app/web/js/a11y.js` (`announce()` amb el format
+- [x] **T-21** — Crear `app/web/js/a11y.js` (`announce()` amb el format
   exacte `"{Nom} mogut a {caixa}."` / `"{Nom} mogut a {caixa} per
   {usuari}."` per canvis remots) i implementar `renderAvatars()` amb la
   lògica d'un/dos avatars i separador `↩` de `proposal.md` §8.8.
   Gestió de `tabindex` mòbil per al botó "eliminar" (només tabulable
   quan la fila té el focus).
-- [ ] **T-22** — Crear `app/web/js/confetti.js` (`confetti()` amb guarda
+- [x] **T-22** — Crear `app/web/js/confetti.js` (`confetti()` amb guarda
   d'un sol tret, ~24–30 partícules, colors `moss`/`terracotta`/groc
   suau `#E8C468`, ~1200ms, `ease-in`, origen centre superior de "A
   comprar"; alternativa `prefers-reduced-motion` = destello estàtic
   `color.success-bg` 600ms) i `app/web/js/tabs.js` (`setActivePanel()`,
   breakpoint 768px, pestanya activa amb subratllat).
-- [ ] **T-23** — Crear `app/web/js/main.js`: punt d'entrada, wiring
+- [x] **T-23** — Crear `app/web/js/main.js`: punt d'entrada, wiring
   d'events (clic/tap i `Enter`/`Space` sobre `ItemRow`, formulari
   d'afegir, botó eliminar, pestanyes mòbil, `×`/`Escape` del toast),
   `syncFromServer()` immediat + `setInterval(syncFromServer, 10000)` +
@@ -285,30 +285,30 @@ updated: "2026-08-01"
 
 ### Fase 5 — Tests (small/medium/large, per la piràmide de `qa-engineer`)
 
-- [ ] **T-24** — Test unitari de validació de nom i normalització
+- [x] **T-24** — Test unitari de validació de nom i normalització
   (`internal/items`): frontera 200/201 caràcters (EC-02/EC-03), nom
   buit/espais (EC-01), caràcters de control (EC-05), corpus Unicode
   complet accents/emoji/apòstrof (EC-04/NFR-11), i el cas NFC vs NFD
   documentat a ADR-02 (`"Àrab"` compost vs descompost han de coincidir
   després de normalitzar). · *covers:* AC-01 (unit), EC-01, EC-02,
   EC-03, EC-04, EC-05, EC-06 (normalització), NFR-11
-- [ ] **T-25** — Test d'integració CF-01/CF-07/CF-08/CF-09/AC-04:
+- [x] **T-25** — Test d'integració CF-01/CF-07/CF-08/CF-09/AC-04:
   `POST /api/v1/items` → `GET` (persistència, CF-01), `PATCH`
   `location=pantry`/`location=shopping` → assert nova ubicació i camps
   d'autoria a la resposta i al `GET` posterior (CF-07/CF-08/CF-09).
   · *covers:* AC-01, AC-02, AC-03, AC-04
-- [ ] **T-26** — Test d'integració de duplicats i eliminació:
+- [x] **T-26** — Test d'integració de duplicats i eliminació:
   CF-05 (6 combinacions retallat+minúscules a través de totes dues
   caixes), CF-06 (crear→eliminar→recrear mateix nom), CF-10/EC-11
   (`DELETE` + doble `DELETE` idempotent), EC-12 (moure ítem inexistent
   → error clar). · *covers:* AC-05, EC-06, EC-07, EC-11, EC-12
-- [ ] **T-27** — Test d'integració de dos usuaris i concurrència:
+- [x] **T-27** — Test d'integració de dos usuaris i concurrència:
   CF-11 (dues sessions simulades, convergència via `GET`), CF-12/AC-09
   (dues `PATCH` concurrents via goroutines sobre el mateix ítem, assert
   cap 5xx i `GET` posterior amb estat únic coincidint amb l'`updated_at`
   més recent — ADR-01), CF-13 (atribució `added_by`/`moved_by` correcta
   amb identitats diferents). · *covers:* AC-06, AC-07, AC-08, AC-09
-- [ ] **T-28** — Test d'integració de seguretat S3a/S3b/S7/S8/EC-08/EC-09/EC-10:
+- [x] **T-28** — Test d'integració de seguretat S3a/S3b/S7/S8/EC-08/EC-09/EC-10:
   assert capçaleres de seguretat presents al 100% de respostes (S7,
   NFR-02); assert CSP sense `unsafe-inline` (S3b); `POST` amb nom
   `<img src=x onerror=alert(1)>` desat literalment i, en navegador real
@@ -319,7 +319,7 @@ updated: "2026-08-01"
   amb grep de `fmt.Sprintf.*SELECT|INSERT|UPDATE|DELETE` a
   `internal/store/` com a comprovació estàtica recomanada). · *covers:*
   NFR-01, NFR-02, NFR-03, NFR-04, EC-08, EC-09, EC-10
-- [ ] **T-29** — Test E2E (Playwright) d'animació i interacció: CF-16
+- [x] **T-29** — Test E2E (Playwright) d'animació i interacció: CF-16
   (FLIP ~250ms, posició final correcta), CF-17
   (`prefers-reduced-motion` → cross-fade sense vol), CF-18 (confeti
   exactament un cop en buidar, no reapareix en renders posteriors),
@@ -329,7 +329,7 @@ updated: "2026-08-01"
   CF-22/AC-16 (contingut exacte de `aria-live` en moviment propi i
   remot). · *covers:* AC-06, AC-10, AC-11, AC-12, AC-13, AC-14, AC-15,
   AC-16, EC-13 (estat buit sense confeti fals), EC-16
-- [ ] **T-30** — Test de persistència i rendiment: EC-14 (seed dades →
+- [x] **T-30** — Test de persistència i rendiment: EC-14 (seed dades →
   reinici del procés/contenidor → `GET /api/v1/items` assert igualtat
   de conjunt); PERF-01/NFR-05 (seed de 500 ítems, mesura p95 de `GET
   /api/v1/items` < 200ms); PERF-02/NFR-06 (Lighthouse amb perfil 3G
@@ -337,7 +337,7 @@ updated: "2026-08-01"
 
 ### Fase 6 — Verificació manual obligatòria i procediment de tancament
 
-- [ ] **T-31** — Crear `app/tests/killtest/main.go` (ADR-04): programa
+- [x] **T-31** — Crear `app/tests/killtest/main.go` (ADR-04): programa
   Go independent que (1) arrenca el binari `niu` real com a procés
   fill contra una BD temporal, (2) llança una goroutine que envia
   `PATCH /api/v1/items/{id}` contínuament, (3) espera un interval
@@ -349,26 +349,26 @@ updated: "2026-08-01"
   esperat. **Executar manualment 10 vegades i deixar constància del
   resultat (log/sortida) abans de tancar NIU-1** — procediment
   obligatori, no opcional (REL-01/NFR-07). · *covers:* EC-15, NFR-07
-- [ ] **T-32** — Crear `app/Makefile` amb els targets alineats amb
+- [x] **T-32** — Crear `app/Makefile` amb els targets alineats amb
   `commands.*` del manifest: `test` (`go test ./...`), `lint`
   (`gofmt -l`, ha d'acceptar un path final), `typecheck` (`go vet
   ./...`), `build` (`go build ./...`), `bootstrap` (`go mod download`),
   `up`/`down` (docker compose — placeholder, NIU-2 el completa), i
   `killtest` (crida a T-31).
-- [ ] **T-33** — Auditoria manual d'accessibilitat i contrast: executar
+- [x] **T-33** — Auditoria manual d'accessibilitat i contrast: executar
   axe-core/Lighthouse sobre totes les combinacions text/fons de
   `proposal.md` §8.1.1 (EC-17/A11Y-02), i verificació puntual amb un
   lector de pantalla real de l'anunci `aria-live` (A11Y-03,
   complementari a T-29). Deixar constància del resultat. · *covers:*
   EC-17, NFR-09, NFR-10
-- [ ] **T-34** — Escaneig S11 de dades personals: revisar tots els
+- [x] **T-34** — Escaneig S11 de dades personals: revisar tots els
   fitxers versionats (codi, migracions, fixtures de test, documentació)
   i confirmar que només apareixen `Usuari A`/`Usuari B` i cap nom real,
   correu o detall domèstic identificable. · *covers:* (S11 — vegeu
   `test-plan.md`, no mapejat a cap AC/EC/NFR de `requirements.md`
   perquè és un requisit de seguretat de projecte transversal; es
   documenta aquí per traçabilitat amb el pla de proves)
-- [ ] **T-35** — Executar `commands.test`, `commands.lint`,
+- [x] **T-35** — Executar `commands.test`, `commands.lint`,
   `commands.typecheck` i `commands.build` del manifest de punta a punta
   i confirmar que **tots** els casos 🟢 NIU-1 de `docs/test-plan.md`
   (CF-01…CF-22, S1a, S3a, S3b, S7, S8, S11, PERF-01, PERF-02, REL-01,
@@ -380,9 +380,9 @@ updated: "2026-08-01"
 
 ### Closing (universal — all changes)
 
-- [ ] **C-01** — Append changelog entry (`docs.changelog` from manifest)
-- [ ] **C-02** — Transition backlog item to `Human Review` via the adapter
-- [ ] **C-03** — Propose semver bump (ASK USER — never apply unattended)
+- [x] **C-01** — Append changelog entry (`docs.changelog` from manifest)
+- [x] **C-02** — Transition backlog item to `In Progress` via the adapter (per `/code` phase contract; `/audit` will move it to `Reviewed`, `/commit` to `Human Review`)
+- [ ] **C-03** — Propose semver bump (ASK USER — never apply unattended; deferred to `/commit`, not part of `/code`)
 
 ## 2. AC ↔ tasks traceability matrix
 

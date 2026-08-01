@@ -1,0 +1,58 @@
+// a11y.js — aria-live announcements (§8.7 exact wording) and mobile
+// managed-tabindex helpers for the "delete" button (only tabbable while
+// its row has focus).
+
+let liveRegion = null;
+
+export function initAnnounce(el) {
+  liveRegion = el;
+}
+
+export function boxLabel(location) {
+  return location === 'shopping' ? 'A comprar' : 'Rebost';
+}
+
+// announce writes the exact wording from proposal.md §8.7:
+//   "{Nom} mogut a {caixa}."                      — local action
+//   "{Nom} mogut a {caixa} per {usuari}."          — remote change (poll)
+export function announce(text) {
+  if (!liveRegion) return;
+  liveRegion.textContent = '';
+  // Force a DOM mutation even if the text is identical to the previous
+  // announcement, so assistive tech re-announces it.
+  requestAnimationFrame(() => {
+    liveRegion.textContent = text;
+  });
+}
+
+export function announceMove(itemName, location, movedByDisplayName) {
+  const target = boxLabel(location);
+  if (movedByDisplayName) {
+    announce(`${itemName} mogut a ${target} per ${movedByDisplayName}.`);
+  } else {
+    announce(`${itemName} mogut a ${target}.`);
+  }
+}
+
+// wireRowFocusTabindex used to manage the delete button's `tabindex`
+// dynamically so it would only join the tab order while its row had
+// focus. That approach relied on the row ITSELF being the sole
+// interactive control (a <button> containing a nested <button>), which
+// axe-core flags as WCAG 4.1.2 "Interactive controls must not be nested"
+// (found via the T-33 accessibility audit) — and separately, hiding a
+// focusable element with `visibility: hidden` turned out to exclude it
+// from Chromium's Tab order entirely, even once a CSS rule made it
+// visible again (found via the T-29 keyboard-navigation spec).
+//
+// render.js now builds each row as a non-interactive container with TWO
+// independent sibling <button>s (the full-cover "move" target and the
+// delete button) — both are native buttons, always genuinely focusable,
+// with no tabindex gymnastics required. Their VISUAL prominence (the
+// delete button is invisible until hovered/focused) is handled purely in
+// CSS via `opacity`/`pointer-events`, which does not affect focusability
+// or tab order at all. This function is kept as a no-op shim so
+// render.js's call site does not need to change shape, but there is
+// nothing left to wire.
+export function wireRowFocusTabindex(_row, _moveBtn, _deleteBtn) {
+  // Intentionally empty — see comment above.
+}
