@@ -1,0 +1,218 @@
+<!-- @dsCard group="Foundations" -->
+<!DOCTYPE html>
+<html lang="ca">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Niu — Fonaments: colors</title>
+<link rel="stylesheet" href="./tokens.css">
+<style>
+  body {
+    margin: 0;
+    padding: var(--space-xl);
+    background: var(--color-bg);
+    color: var(--color-text-primary);
+    font-family: var(--font-family-base);
+  }
+  h1 { font-size: var(--type-title-size); line-height: var(--type-title-line); font-weight: var(--type-title-weight); }
+  h2 { font-size: 18px; margin-top: var(--space-2xl); }
+  p.intro { color: var(--color-text-secondary); max-width: 640px; }
+  .grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+    gap: var(--space-md);
+    margin-top: var(--space-md);
+  }
+  .swatch {
+    border-radius: var(--radius-lg);
+    box-shadow: var(--shadow-md);
+    border: 1px solid var(--color-border);
+    overflow: hidden;
+    background: var(--color-surface);
+  }
+  .swatch .fill {
+    height: 96px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: var(--type-body-strong-weight);
+  }
+  .swatch .meta {
+    padding: var(--space-md);
+  }
+  .swatch .meta code {
+    display: block;
+    font-size: var(--type-caption-size);
+    color: var(--color-text-secondary);
+    margin-top: var(--space-xs);
+  }
+  .ratio {
+    display: inline-block;
+    margin-top: var(--space-sm);
+    font-size: var(--type-caption-size);
+    padding: 2px 8px;
+    border-radius: var(--radius-sm);
+    background: var(--color-surface-soft);
+  }
+  .ratio.pass { color: var(--color-moss-active); }
+  .ratio.forbidden { color: var(--color-error); background: var(--color-error-bg); }
+  .pair-demo {
+    padding: var(--space-md);
+    border-radius: var(--radius-md);
+    font-weight: var(--type-body-strong-weight);
+  }
+  .note {
+    grid-column: 1 / -1;
+    background: var(--color-surface);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
+    padding: var(--space-md);
+    font-size: var(--type-caption-size);
+    color: var(--color-text-secondary);
+  }
+</style>
+</head>
+<body>
+  <h1>Niu — paleta de colors</h1>
+  <p class="intro">Tots els valors provenen de §8.1 de la proposta. Cada targeta mostra el token, el seu valor hex i, quan aplica, la ràtio de contrast verificada a §8.1.1.</p>
+
+  <h2>Colors base</h2>
+  <div class="grid">
+    <div class="swatch">
+      <div class="fill" style="background: var(--color-bg); color: var(--color-text-primary);">color.bg</div>
+      <div class="meta">Fons general de la pàgina<code>#FBF6EC</code></div>
+    </div>
+    <div class="swatch">
+      <div class="fill" style="background: var(--color-surface); color: var(--color-text-primary); border-bottom: 1px solid var(--color-border);">color.surface</div>
+      <div class="meta">Fons de caixes, targetes, toast<code>#FFFFFF</code></div>
+    </div>
+    <div class="swatch">
+      <div class="fill" style="background: var(--color-surface-soft); color: var(--color-text-primary);">color.surface-soft</div>
+      <div class="meta">Fila d'ítem en repòs<code>#F3ECDD</code></div>
+    </div>
+    <div class="swatch">
+      <div class="fill" style="background: var(--color-border); color: var(--color-text-primary);">color.border</div>
+      <div class="meta">Vores de caixes, inputs, separadors<code>#DCD2BC</code></div>
+    </div>
+    <div class="swatch">
+      <div class="fill" style="background: var(--color-text-primary); color: var(--color-bg);">color.text-primary</div>
+      <div class="meta">Text principal<code>#2E2A22</code></div>
+    </div>
+    <div class="swatch">
+      <div class="fill" style="background: var(--color-text-secondary); color: var(--color-bg);">color.text-secondary</div>
+      <div class="meta">Text secundari<code>#5C5546</code></div>
+    </div>
+    <div class="swatch">
+      <div class="fill" style="background: var(--color-moss); color: #fff;">color.moss</div>
+      <div class="meta">Acció primària — caixa Rebost, botó afegir<code>#3F6B4A</code></div>
+    </div>
+    <div class="swatch">
+      <div class="fill" style="background: var(--color-moss-hover); color: #fff;">color.moss-hover</div>
+      <div class="meta">Estat :hover de moss<code>#355C3F</code></div>
+    </div>
+    <div class="swatch">
+      <div class="fill" style="background: var(--color-moss-active); color: #fff;">color.moss-active</div>
+      <div class="meta">Estat :active de moss<code>#2C4C34</code></div>
+    </div>
+    <div class="swatch">
+      <div class="fill" style="background: var(--color-terracotta); color: #fff;">color.terracotta</div>
+      <div class="meta">Accent — només superfícies grans / text ≥24px<code>#C1552C</code></div>
+    </div>
+    <div class="swatch">
+      <div class="fill" style="background: var(--color-terracotta-hover); color: #fff;">color.terracotta-hover</div>
+      <div class="meta">:hover de terracotta; també token de TEXT terracota<code>#A6431F</code></div>
+    </div>
+    <div class="swatch">
+      <div class="fill" style="background: var(--color-terracotta-active); color: #fff;">color.terracotta-active</div>
+      <div class="meta">Estat :active de terracotta<code>#8C3719</code></div>
+    </div>
+    <div class="swatch">
+      <div class="fill" style="background: var(--color-focus-ring); color: #fff;">color.focus-ring</div>
+      <div class="meta">Anell de focus visible<code>#1F5FA8</code></div>
+    </div>
+    <div class="swatch">
+      <div class="fill" style="background: var(--color-error); color: #fff;">color.error</div>
+      <div class="meta">Text i icona d'error<code>#A6341C</code></div>
+    </div>
+    <div class="swatch">
+      <div class="fill" style="background: var(--color-error-bg); color: var(--color-text-primary);">color.error-bg</div>
+      <div class="meta">Fons subtil de missatges d'error<code>#F6DFD7</code></div>
+    </div>
+    <div class="swatch">
+      <div class="fill" style="background: var(--color-success-bg); color: var(--color-text-primary);">color.success-bg</div>
+      <div class="meta">Fons subtil de confirmació<code>#E4EFE3</code></div>
+    </div>
+  </div>
+
+  <h2>8.1.1 — Taula de contrast (AA, calculada)</h2>
+  <div class="grid">
+    <div class="swatch">
+      <div class="pair-demo" style="background: var(--color-bg); color: var(--color-text-primary);">text-primary / bg</div>
+      <div class="meta"><span class="ratio pass">13.26:1 — ✅ AAA (llindar 4.5:1)</span></div>
+    </div>
+    <div class="swatch">
+      <div class="pair-demo" style="background: var(--color-surface); color: var(--color-text-primary);">text-primary / surface</div>
+      <div class="meta"><span class="ratio pass">14.28:1 — ✅ AAA (llindar 4.5:1)</span></div>
+    </div>
+    <div class="swatch">
+      <div class="pair-demo" style="background: var(--color-bg); color: var(--color-text-secondary);">text-secondary / bg</div>
+      <div class="meta"><span class="ratio pass">6.86:1 — ✅ AA (llindar 4.5:1)</span></div>
+    </div>
+    <div class="swatch">
+      <div class="pair-demo" style="background: var(--color-surface); color: var(--color-text-secondary);">text-secondary / surface</div>
+      <div class="meta"><span class="ratio pass">7.39:1 — ✅ AA (llindar 4.5:1)</span></div>
+    </div>
+    <div class="swatch">
+      <div class="pair-demo" style="background: var(--color-bg); color: var(--color-moss);">moss / bg (text/icona)</div>
+      <div class="meta"><span class="ratio pass">5.71:1 — ✅ AA (llindar 4.5:1)</span></div>
+    </div>
+    <div class="swatch">
+      <div class="pair-demo" style="background: var(--color-moss); color: #fff;">blanc / moss (botó ple)</div>
+      <div class="meta"><span class="ratio pass">6.15:1 — ✅ AA (llindar 4.5:1)</span></div>
+    </div>
+    <div class="swatch">
+      <div class="pair-demo" style="background: var(--color-moss-hover); color: #fff;">blanc / moss-hover</div>
+      <div class="meta"><span class="ratio pass">7.63:1 — ✅ AA (llindar 4.5:1)</span></div>
+    </div>
+    <div class="swatch">
+      <div class="pair-demo" style="background: var(--color-moss-active); color: #fff;">blanc / moss-active</div>
+      <div class="meta"><span class="ratio pass">9.59:1 — ✅ AAA (llindar 4.5:1)</span></div>
+    </div>
+    <div class="swatch">
+      <div class="pair-demo" style="background: var(--color-bg); color: var(--color-terracotta); font-size: 24px;">terracotta / bg (text ≥24px o UI)</div>
+      <div class="meta"><span class="ratio pass">4.24:1 — ✅ AA gran/UI (llindar 3:1)</span><br><span class="ratio forbidden">❌ prohibit en text normal &lt;24px</span></div>
+    </div>
+    <div class="swatch">
+      <div class="pair-demo" style="background: var(--color-bg); color: var(--color-terracotta-hover);">terracotta-hover / bg (text normal)</div>
+      <div class="meta"><span class="ratio pass">5.66:1 — ✅ AA (llindar 4.5:1)</span></div>
+    </div>
+    <div class="swatch">
+      <div class="pair-demo" style="background: var(--color-terracotta); color: #fff;">blanc / terracotta (botó ple)</div>
+      <div class="meta"><span class="ratio pass">4.56:1 — ✅ AA (marge mínim, llindar 4.5:1)</span></div>
+    </div>
+    <div class="swatch">
+      <div class="pair-demo" style="background: var(--color-terracotta-hover); color: #fff;">blanc / terracotta-hover</div>
+      <div class="meta"><span class="ratio pass">6.10:1 — ✅ AA (llindar 4.5:1)</span></div>
+    </div>
+    <div class="swatch">
+      <div class="pair-demo" style="background: var(--color-terracotta-active); color: #fff;">blanc / terracotta-active</div>
+      <div class="meta"><span class="ratio pass">7.85:1 — ✅ AAA (llindar 4.5:1)</span></div>
+    </div>
+    <div class="swatch">
+      <div class="pair-demo" style="background: var(--color-error); color: #fff;">blanc / error (toast)</div>
+      <div class="meta"><span class="ratio pass">6.71:1 — ✅ AA (llindar 4.5:1)</span></div>
+    </div>
+    <div class="swatch">
+      <div class="pair-demo" style="background: var(--color-bg); color: var(--color-focus-ring); border: 3px solid var(--color-focus-ring);">focus-ring / bg</div>
+      <div class="meta"><span class="ratio pass">5.98:1 — ✅ AA (component no-text, llindar 3:1)</span></div>
+    </div>
+    <div class="swatch">
+      <div class="pair-demo" style="background: var(--color-bg); border-bottom: 4px solid var(--color-border);">border / bg</div>
+      <div class="meta"><span class="ratio">1.39:1 — N/A, decoratiu, mai sol per transmetre estat</span></div>
+    </div>
+    <div class="note">
+      <strong>Regla derivada (EC-17 / A11Y-02):</strong> <code>color.terracotta</code> (<code>#C1552C</code>) només s'aplica a fons de components grans (pestanya activa, botó ple amb text blanc) o text ≥24px. Per a qualsevol etiqueta/missatge/número en terracota a mida normal, s'usa <code>color.terracotta-hover</code> (<code>#A6431F</code>) com a color de text — mai <code>#C1552C</code>.
+    </div>
+  </div>
+</body>
+</html>

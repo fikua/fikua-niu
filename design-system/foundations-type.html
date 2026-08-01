@@ -1,0 +1,105 @@
+<!-- @dsCard group="Foundations" -->
+<!DOCTYPE html>
+<html lang="ca">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Niu — Fonaments: tipografia, radi, ombra, espaiat</title>
+<link rel="stylesheet" href="./tokens.css">
+<style>
+  body {
+    margin: 0;
+    padding: var(--space-xl);
+    background: var(--color-bg);
+    color: var(--color-text-primary);
+    font-family: var(--font-family-base);
+  }
+  h1 { font-size: var(--type-title-size); line-height: var(--type-title-line); font-weight: var(--type-title-weight); }
+  h2 { font-size: 18px; margin-top: var(--space-2xl); border-bottom: 1px solid var(--color-border); padding-bottom: var(--space-sm); }
+  p.intro { color: var(--color-text-secondary); max-width: 640px; }
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    margin-top: var(--space-md);
+    background: var(--color-surface);
+    border-radius: var(--radius-md);
+    overflow: hidden;
+    box-shadow: var(--shadow-sm);
+  }
+  th, td {
+    text-align: left;
+    padding: var(--space-md);
+    border-bottom: 1px solid var(--color-border);
+    vertical-align: middle;
+  }
+  th { color: var(--color-text-secondary); font-size: var(--type-caption-size); text-transform: uppercase; letter-spacing: 0.04em; }
+  .sample-title { font-size: var(--type-title-size); line-height: var(--type-title-line); font-weight: var(--type-title-weight); }
+  .sample-body { font-size: var(--type-body-size); line-height: var(--type-body-line); font-weight: var(--type-body-weight); }
+  .sample-body-strong { font-size: var(--type-body-size); line-height: var(--type-body-line); font-weight: var(--type-body-strong-weight); }
+  .sample-caption { font-size: var(--type-caption-size); line-height: var(--type-caption-line); font-weight: var(--type-caption-weight); color: var(--color-text-secondary); }
+  .sample-button { font-size: var(--type-button-size); line-height: var(--type-button-line); font-weight: var(--type-button-weight); }
+  .sample-toast { font-size: var(--type-toast-size); line-height: var(--type-toast-line); font-weight: var(--type-toast-weight); }
+
+  .scale-grid { display: flex; flex-wrap: wrap; gap: var(--space-lg); margin-top: var(--space-md); align-items: flex-end; }
+  .radius-demo, .shadow-demo, .space-demo {
+    background: var(--color-surface);
+    border: 1px solid var(--color-border);
+    display: flex; align-items: center; justify-content: center;
+    color: var(--color-text-secondary);
+    font-size: var(--type-caption-size);
+  }
+  .radius-demo { width: 96px; height: 96px; }
+  .shadow-demo { width: 140px; height: 96px; border: none; }
+  .space-block { background: var(--color-moss); border-radius: var(--radius-sm); }
+  .space-row { display: flex; align-items: center; gap: var(--space-sm); margin-bottom: var(--space-sm); }
+  .space-label { width: 140px; font-size: var(--type-caption-size); color: var(--color-text-secondary); }
+</style>
+</head>
+<body>
+  <h1>Niu — tipografia, radi, ombra, espaiat</h1>
+  <p class="intro">Escales de §8.1 i §8.2. Família: Nunito autoallotjada (només pesos Regular 400 i Bold 700), amb fallback <code>"Nunito", "Segoe UI", system-ui, -apple-system, sans-serif</code> — vegeu la nota d'autoallotjament a <code>tokens.css</code>.</p>
+
+  <h2>Escala tipogràfica</h2>
+  <table>
+    <thead><tr><th>Token</th><th>Mostra</th><th>Mida / interlineat / pes</th><th>Ús</th></tr></thead>
+    <tbody>
+      <tr><td><code>type.title</code></td><td class="sample-title">🛒 A comprar</td><td>24px / 1.25 / Bold</td><td>Títol de caixa</td></tr>
+      <tr><td><code>type.body</code></td><td class="sample-body">Llet</td><td>16px / 1.4 / Regular</td><td>Nom d'ítem, text de formulari</td></tr>
+      <tr><td><code>type.body-strong</code></td><td class="sample-body-strong">Llet</td><td>16px / 1.4 / Bold</td><td>Confirmació visual breu (opcional)</td></tr>
+      <tr><td><code>type.caption</code></td><td class="sample-caption">fa 3 minuts · 120/200</td><td>13px / 1.3 / Regular</td><td>Marca de temps, ajuda, comptador</td></tr>
+      <tr><td><code>type.button</code></td><td class="sample-button">Afegir</td><td>16px / 1.4 / Bold</td><td>Text de botons</td></tr>
+      <tr><td><code>type.toast</code></td><td class="sample-toast">No s'ha pogut moure «Llet».</td><td>14px / 1.4 / Regular</td><td>Missatge de toast</td></tr>
+    </tbody>
+  </table>
+
+  <h2>Escala de radi (16–20px, PLAN.md §4)</h2>
+  <div class="scale-grid">
+    <div>
+      <div class="radius-demo" style="border-radius: var(--radius-sm);">radius.sm — 8px</div>
+    </div>
+    <div>
+      <div class="radius-demo" style="border-radius: var(--radius-md);">radius.md — 16px</div>
+    </div>
+    <div>
+      <div class="radius-demo" style="border-radius: var(--radius-lg);">radius.lg — 20px</div>
+    </div>
+  </div>
+
+  <h2>Escala d'ombra (soft shadows)</h2>
+  <div class="scale-grid">
+    <div class="shadow-demo" style="box-shadow: var(--shadow-sm); border-radius: var(--radius-md);">shadow.sm — fila en repòs</div>
+    <div class="shadow-demo" style="box-shadow: var(--shadow-md); border-radius: var(--radius-md);">shadow.md — caixa, input focus</div>
+    <div class="shadow-demo" style="box-shadow: var(--shadow-lg); border-radius: var(--radius-md);">shadow.lg — toast, ítem en vol</div>
+  </div>
+
+  <h2>Escala d'espaiat (base 4px)</h2>
+  <div style="margin-top: var(--space-md);">
+    <div class="space-row"><span class="space-label">space.xs — 4px</span><div class="space-block" style="width: 4px; height: 16px;"></div></div>
+    <div class="space-row"><span class="space-label">space.sm — 8px</span><div class="space-block" style="width: 8px; height: 16px;"></div></div>
+    <div class="space-row"><span class="space-label">space.md — 16px</span><div class="space-block" style="width: 16px; height: 16px;"></div></div>
+    <div class="space-row"><span class="space-label">space.lg — 24px</span><div class="space-block" style="width: 24px; height: 16px;"></div></div>
+    <div class="space-row"><span class="space-label">space.xl — 32px</span><div class="space-block" style="width: 32px; height: 16px;"></div></div>
+    <div class="space-row"><span class="space-label">space.2xl — 48px</span><div class="space-block" style="width: 48px; height: 16px;"></div></div>
+  </div>
+</body>
+</html>

@@ -1,0 +1,135 @@
+<!-- @dsCard group="Components" -->
+<!DOCTYPE html>
+<html lang="ca">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Niu — Component: Toast i EmptyState</title>
+<link rel="stylesheet" href="./tokens.css">
+<style>
+  body {
+    margin: 0;
+    padding: var(--space-xl);
+    background: var(--color-bg);
+    color: var(--color-text-primary);
+    font-family: var(--font-family-base);
+  }
+  h1 { font-size: var(--type-title-size); line-height: var(--type-title-line); font-weight: var(--type-title-weight); }
+  h2 { font-size: 18px; margin-top: var(--space-2xl); border-bottom: 1px solid var(--color-border); padding-bottom: var(--space-sm); }
+  p.intro { color: var(--color-text-secondary); max-width: 640px; }
+  .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(340px, 1fr)); gap: var(--space-lg); margin-top: var(--space-md); }
+  .cell { display: flex; flex-direction: column; gap: var(--space-sm); }
+  .cell .label { font-size: var(--type-caption-size); color: var(--color-text-secondary); font-weight: var(--type-body-strong-weight); }
+
+  /* Toast, §8.4.4 */
+  .toast {
+    background: var(--color-surface);
+    border-radius: var(--radius-md);
+    box-shadow: var(--shadow-lg);
+    padding: var(--space-md);
+    display: flex;
+    align-items: center;
+    gap: var(--space-sm);
+    font-size: var(--type-toast-size);
+    line-height: var(--type-toast-line);
+    color: var(--color-text-primary);
+  }
+  .toast .icon { color: var(--color-error); flex: 0 0 auto; }
+  .toast .msg { flex: 1 1 auto; }
+  .toast .close-btn {
+    flex: 0 0 auto;
+    background: transparent;
+    border: none;
+    color: var(--color-text-secondary);
+    font-size: 18px;
+    cursor: pointer;
+    width: 32px; height: 32px;
+    border-radius: var(--radius-sm);
+  }
+  .toast .close-btn.state-focus { outline: 2px solid var(--color-focus-ring); outline-offset: 2px; }
+
+  /* EmptyState, §8.4.5 */
+  .empty-state {
+    background: var(--color-surface);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-lg);
+    box-shadow: var(--shadow-md);
+    padding: var(--space-2xl) var(--space-lg);
+    text-align: center;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: var(--space-sm);
+  }
+  .empty-state .icon { font-size: 32px; }
+  .empty-state .msg { font-size: var(--type-body-size); line-height: var(--type-body-line); color: var(--color-text-secondary); }
+  .empty-state .add-preview {
+    margin-top: var(--space-md);
+    width: 100%;
+    box-sizing: border-box;
+    background: var(--color-bg);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
+    padding: var(--space-sm) var(--space-md);
+    color: var(--color-text-secondary);
+    font-size: var(--type-body-size);
+  }
+  .empty-state.state-flash { background: var(--color-success-bg); }
+</style>
+</head>
+<body>
+  <h1>Niu — Toast (§8.4.4) i EmptyState (§8.4.5)</h1>
+  <p class="intro">Toast: no bloquejant, auto-descartat als 5s, també amb "×" o <code>Escape</code>. <code>role="status"</code> (no <code>alert</code>). EmptyState: manté l'input d'afegir visible i actiu — l'estat buit no bloqueja l'acció principal.</p>
+
+  <h2>Toast — aparició (AC-13)</h2>
+  <div class="grid">
+    <div class="cell">
+      <span class="label">Default — inclou sempre el nom de l'ítem</span>
+      <div class="toast" role="status">
+        <span class="icon" aria-hidden="true">⚠</span>
+        <span class="msg">No s'ha pogut moure «Llet». Torna-ho a provar.</span>
+        <button class="close-btn" type="button" aria-label="Tancar avís">×</button>
+      </div>
+    </div>
+    <div class="cell">
+      <span class="label">:focus-visible sobre el botó ×</span>
+      <div class="toast" role="status">
+        <span class="icon" aria-hidden="true">⚠</span>
+        <span class="msg">No s'ha pogut moure «Arròs». Torna-ho a provar.</span>
+        <button class="close-btn state-focus" type="button" aria-label="Tancar avís">×</button>
+      </div>
+    </div>
+  </div>
+
+  <h2>EmptyState — "A comprar" buida (EC-13)</h2>
+  <div class="grid">
+    <div class="cell">
+      <span class="label">Primer ús / després de comprar-ho tot</span>
+      <div class="empty-state" role="region" aria-label="A comprar">
+        <span class="icon" aria-hidden="true">🌿</span>
+        <p class="msg">Res per comprar ara mateix.</p>
+        <div class="add-preview">+ afegir un ítem…</div>
+      </div>
+    </div>
+    <div class="cell">
+      <span class="label">Flaix estàtic reduced-motion (alternativa a confeti, 600ms)</span>
+      <div class="empty-state state-flash" role="region" aria-label="A comprar">
+        <span class="icon" aria-hidden="true">🌿</span>
+        <p class="msg">Res per comprar ara mateix.</p>
+        <div class="add-preview">+ afegir un ítem…</div>
+      </div>
+    </div>
+  </div>
+
+  <h2>EmptyState — "Rebost" buit (EC-13, sense confeti mai)</h2>
+  <div class="grid">
+    <div class="cell">
+      <span class="label">Primer ús</span>
+      <div class="empty-state" role="region" aria-label="Rebost">
+        <span class="icon" aria-hidden="true">🌿</span>
+        <p class="msg">El rebost encara està buit.</p>
+      </div>
+    </div>
+  </div>
+</body>
+</html>

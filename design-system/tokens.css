@@ -1,0 +1,137 @@
+/*
+  Niu design tokens
+  Source of truth: docs/changes/NIU-1-llista-de-la-compra-rebost-auth/proposal.md §8.1 / §8.2
+  Every value below is copied verbatim from the approved spec — do not
+  edit a hex/px/ms/curve here without updating the spec first, the WCAG
+  contrast ratios in §8.1.1 were computed against these exact values.
+
+  FONT NOTE: the spec mandates self-hosted Nunito (.woff2) served from
+  app/web/fonts/ by the same Go binary — no Google Fonts, no external
+  font-src (CSP forbids it, it also leaks the user's IP). This preview
+  cannot ship the real font binaries, so it declares the @font-face rule
+  commented out as a placeholder and relies on the spec's own fallback
+  stack in `--font-family-base`. At implementation time, uncomment and
+  point `src` at the two static woff2 files (Regular 400, Bold 700 only —
+  no italic, no variable font, per §8.2 PERF-02).
+*/
+
+:root {
+  /* ---- 8.1 Base colours ---- */
+  --color-bg: #FBF6EC;
+  --color-surface: #FFFFFF;
+  --color-surface-soft: #F3ECDD;
+  --color-border: #DCD2BC;
+  --color-text-primary: #2E2A22;
+  --color-text-secondary: #5C5546;
+
+  --color-moss: #3F6B4A;
+  --color-moss-hover: #355C3F;
+  --color-moss-active: #2C4C34;
+
+  /* Terracotta rule (§8.1.1, EC-17/A11Y-02):
+     --color-terracotta is ONLY for filled surfaces (active tab underline
+     background, filled buttons with white text) or text >=24px.
+     --color-terracotta-hover doubles as the TEXT-safe terracotta token
+     for any normal-size label/count/link — never use --color-terracotta
+     as a text colour below 24px. */
+  --color-terracotta: #C1552C;
+  --color-terracotta-hover: #A6431F;
+  --color-terracotta-active: #8C3719;
+
+  --color-focus-ring: #1F5FA8;
+
+  --color-error: #A6341C;
+  --color-error-bg: #F6DFD7;
+  --color-success-bg: #E4EFE3;
+
+  /* Confetti-only accent (§8.6.3) — single decorative use, nowhere else */
+  --color-confetti-yellow: #E8C468;
+
+  /* ---- 8.1 Radius scale (PLAN.md §4: 16-20px) ---- */
+  --radius-sm: 8px;
+  --radius-md: 16px;
+  --radius-lg: 20px;
+
+  /* ---- 8.1 Shadow scale ---- */
+  --shadow-sm: 0 1px 2px rgba(46, 42, 34, 0.06);
+  --shadow-md: 0 4px 12px rgba(46, 42, 34, 0.10);
+  --shadow-lg: 0 8px 24px rgba(46, 42, 34, 0.16);
+
+  /* ---- 8.1 Spacing scale (base 4px) ---- */
+  --space-xs: 4px;
+  --space-sm: 8px;
+  --space-md: 16px;
+  --space-lg: 24px;
+  --space-xl: 32px;
+  --space-2xl: 48px;
+
+  /* ---- 8.2 Typography ---- */
+  --font-family-base: "Nunito", "Segoe UI", system-ui, -apple-system, sans-serif;
+
+  --type-title-size: 24px;
+  --type-title-line: 1.25;
+  --type-title-weight: 700;
+
+  --type-body-size: 16px;
+  --type-body-line: 1.4;
+  --type-body-weight: 400;
+
+  --type-body-strong-weight: 700;
+
+  --type-caption-size: 13px;
+  --type-caption-line: 1.3;
+  --type-caption-weight: 400;
+
+  --type-button-size: 16px;
+  --type-button-line: 1.4;
+  --type-button-weight: 700;
+
+  --type-toast-size: 14px;
+  --type-toast-line: 1.4;
+  --type-toast-weight: 400;
+
+  /* ---- 8.6 Motion spec ---- */
+  --motion-flip-duration: 250ms;
+  --motion-flip-easing: cubic-bezier(0, 0, 0.2, 1);
+  --motion-flip-peak-scale: 1.03;
+  --motion-crossfade-duration: 150ms;
+  --motion-confetti-duration: 1200ms;
+  --motion-reduced-flash-duration: 600ms;
+
+  /* ---- 8.7 Touch target (EC-16, mobile) ---- */
+  --touch-target-min: 44px;
+
+  /* ---- 8.3 Layout ---- */
+  --layout-breakpoint: 768px;
+  --layout-max-content: 960px;
+}
+
+/*
+@font-face {
+  font-family: "Nunito";
+  src: url("./fonts/Nunito-Regular.woff2") format("woff2");
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: "Nunito";
+  src: url("./fonts/Nunito-Bold.woff2") format("woff2");
+  font-weight: 700;
+  font-style: normal;
+  font-display: swap;
+}
+*/
+
+/* ---- sr-only utility, used by aria-live regions (§8.7) ---- */
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}

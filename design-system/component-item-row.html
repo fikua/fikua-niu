@@ -1,0 +1,225 @@
+<!-- @dsCard group="Components" -->
+<!DOCTYPE html>
+<html lang="ca">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Niu — Component: ItemRow</title>
+<link rel="stylesheet" href="./tokens.css">
+<style>
+  body {
+    margin: 0;
+    padding: var(--space-xl);
+    background: var(--color-bg);
+    color: var(--color-text-primary);
+    font-family: var(--font-family-base);
+  }
+  h1 { font-size: var(--type-title-size); line-height: var(--type-title-line); font-weight: var(--type-title-weight); }
+  h2 { font-size: 18px; margin-top: var(--space-2xl); border-bottom: 1px solid var(--color-border); padding-bottom: var(--space-sm); }
+  p.intro, p.caption { color: var(--color-text-secondary); font-size: var(--type-caption-size); max-width: 640px; }
+  .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: var(--space-lg); margin-top: var(--space-md); }
+  .cell { display: flex; flex-direction: column; gap: var(--space-sm); }
+  .cell .label { font-size: var(--type-caption-size); color: var(--color-text-secondary); font-weight: var(--type-body-strong-weight); }
+
+  /* ItemRow, per §8.4.2 */
+  .item-row {
+    display: flex;
+    align-items: center;
+    gap: var(--space-sm);
+    background: var(--color-surface-soft);
+    border-radius: var(--radius-md);
+    box-shadow: var(--shadow-sm);
+    padding: var(--space-sm) var(--space-md);
+    font-size: var(--type-body-size);
+    line-height: var(--type-body-line);
+    width: 100%;
+    border: none;
+    text-align: left;
+    font-family: inherit;
+    color: var(--color-text-primary);
+    cursor: pointer;
+    position: relative;
+    box-sizing: border-box;
+  }
+  .item-row .indicator {
+    flex: 0 0 auto;
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    display: inline-block;
+  }
+  .item-row .indicator.shopping { border: 2px solid var(--color-text-secondary); background: transparent; width: 4px; height: 4px; }
+  .item-row .indicator.pantry { background: var(--color-moss); }
+  .item-row .name { flex: 1 1 auto; }
+  .item-row .avatars { display: flex; align-items: center; gap: var(--space-xs); flex: 0 0 auto; }
+  .avatar {
+    width: 28px; height: 28px;
+    border-radius: 50%;
+    background: var(--color-surface);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 16px;
+    flex: 0 0 auto;
+  }
+  .avatar-link { color: var(--color-text-secondary); font-size: 12px; }
+  .item-row .delete-btn {
+    flex: 0 0 auto;
+    width: 32px; height: 32px;
+    border-radius: var(--radius-sm);
+    border: none;
+    background: transparent;
+    color: var(--color-error);
+    display: none;
+    align-items: center; justify-content: center;
+    cursor: pointer;
+    font-size: 16px;
+  }
+
+  /* States */
+  .item-row.state-hover { background: var(--color-surface); box-shadow: var(--shadow-md); }
+  .item-row.state-hover .delete-btn { display: flex; }
+
+  .item-row.state-focus {
+    outline: 2px solid var(--color-focus-ring);
+    outline-offset: 2px;
+  }
+  .item-row.state-focus .delete-btn { display: flex; }
+
+  .item-row.state-active { transform: scale(0.98); }
+
+  .item-row.state-pending { opacity: 0.85; box-shadow: var(--shadow-lg); }
+
+  .item-row.state-rollback {
+    box-shadow: var(--shadow-lg);
+    animation: rollback-shake 250ms var(--motion-flip-easing);
+  }
+  @keyframes rollback-shake {
+    0% { transform: translateX(0); }
+    50% { transform: translateX(-4px) scale(1.03); }
+    100% { transform: translateX(0) scale(1); }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .item-row.state-rollback { animation: none; }
+  }
+
+  .rollback-toast-inline {
+    margin-top: var(--space-xs);
+    background: var(--color-surface);
+    border-radius: var(--radius-md);
+    box-shadow: var(--shadow-lg);
+    padding: var(--space-sm) var(--space-md);
+    font-size: var(--type-toast-size);
+    line-height: var(--type-toast-line);
+    color: var(--color-error);
+    display: flex;
+    align-items: center;
+    gap: var(--space-sm);
+  }
+</style>
+</head>
+<body>
+  <h1>Niu — ItemRow (§8.4.2)</h1>
+  <p class="intro">Estructura: [indicador de caixa] [nom] [avatar(s)] [botó eliminar, visible en focus/hover]. Cercle buit ○ a "A comprar", cercle ple ● a "Rebost" — decoratiu-redundant, mai l'única pista.</p>
+
+  <h2>Estats — variant "A comprar" (avatar únic)</h2>
+  <div class="grid">
+    <div class="cell">
+      <span class="label">Default</span>
+      <button class="item-row" type="button" aria-label="Moure Llet a Rebost">
+        <span class="indicator shopping" aria-hidden="true"></span>
+        <span class="name">Llet</span>
+        <span class="avatars" aria-hidden="true"><span class="avatar" title="Afegit per Usuari A">🐦</span></span>
+        <span class="delete-btn" aria-hidden="true">🗑</span>
+      </button>
+    </div>
+    <div class="cell">
+      <span class="label">:hover — fons puja, apareix eliminar</span>
+      <button class="item-row state-hover" type="button" aria-label="Moure Llet a Rebost">
+        <span class="indicator shopping" aria-hidden="true"></span>
+        <span class="name">Llet</span>
+        <span class="avatars" aria-hidden="true"><span class="avatar" title="Afegit per Usuari A">🐦</span></span>
+        <button class="delete-btn" type="button" aria-label="Eliminar Llet" tabindex="-1">🗑</button>
+      </button>
+    </div>
+    <div class="cell">
+      <span class="label">:focus-visible — anell 2px outset</span>
+      <button class="item-row state-focus" type="button" aria-label="Moure Llet a Rebost">
+        <span class="indicator shopping" aria-hidden="true"></span>
+        <span class="name">Llet</span>
+        <span class="avatars" aria-hidden="true"><span class="avatar" title="Afegit per Usuari A">🐦</span></span>
+        <button class="delete-btn" type="button" aria-label="Eliminar Llet" tabindex="0">🗑</button>
+      </button>
+    </div>
+    <div class="cell">
+      <span class="label">:active / seleccionant per moure — scale(0.98) 100ms</span>
+      <button class="item-row state-active" type="button" aria-label="Moure Llet a Rebost">
+        <span class="indicator shopping" aria-hidden="true"></span>
+        <span class="name">Llet</span>
+        <span class="avatars" aria-hidden="true"><span class="avatar" title="Afegit per Usuari A">🐦</span></span>
+        <span class="delete-btn" aria-hidden="true">🗑</span>
+      </button>
+    </div>
+    <div class="cell">
+      <span class="label">Pendent (optimista, abans de confirmació)</span>
+      <button class="item-row state-pending" type="button" aria-label="Moure Llet a Rebost">
+        <span class="indicator shopping" aria-hidden="true"></span>
+        <span class="name">Llet</span>
+        <span class="avatars" aria-hidden="true"><span class="avatar" title="Afegit per Usuari A">🐦</span></span>
+        <span class="delete-btn" aria-hidden="true">🗑</span>
+      </button>
+    </div>
+    <div class="cell">
+      <span class="label">Rebutjat pel servidor (rollback) + toast simultani</span>
+      <button class="item-row state-rollback" type="button" aria-label="Moure Llet a Rebost">
+        <span class="indicator shopping" aria-hidden="true"></span>
+        <span class="name">Llet</span>
+        <span class="avatars" aria-hidden="true"><span class="avatar" title="Afegit per Usuari A">🐦</span></span>
+        <span class="delete-btn" aria-hidden="true">🗑</span>
+      </button>
+      <div class="rollback-toast-inline" role="status">
+        <span aria-hidden="true">⚠</span>
+        No s'ha pogut moure «Llet». Torna-ho a provar.
+      </div>
+    </div>
+  </div>
+
+  <h2>Variant dual-avatar (Rebost) — §8.8</h2>
+  <p class="caption">Quan <code>added_by</code> ≠ <code>moved_by</code>: [avatar afegit] ↩ [avatar mogut], en aquest ordre (creació → últim moviment). Mai superposats en cercle.</p>
+  <div class="grid">
+    <div class="cell">
+      <span class="label">Default — avatar únic (added_by = moved_by)</span>
+      <button class="item-row" type="button" aria-label="Moure Arròs a A comprar">
+        <span class="indicator pantry" aria-hidden="true"></span>
+        <span class="name">Arròs</span>
+        <span class="avatars" aria-hidden="true"><span class="avatar" title="Afegit per Usuari B">🦊</span></span>
+        <span class="delete-btn" aria-hidden="true">🗑</span>
+      </button>
+    </div>
+    <div class="cell">
+      <span class="label">Default — dos avatars (afegit ≠ mogut)</span>
+      <button class="item-row" type="button" aria-label="Moure Oli a A comprar. Afegit per Usuari A, mogut per Usuari B">
+        <span class="indicator pantry" aria-hidden="true"></span>
+        <span class="name">Oli</span>
+        <span class="avatars" aria-hidden="true">
+          <span class="avatar" title="Afegit per Usuari A">🐦</span>
+          <span class="avatar-link">↩</span>
+          <span class="avatar" title="Mogut per Usuari B">🦊</span>
+        </span>
+        <span class="delete-btn" aria-hidden="true">🗑</span>
+      </button>
+    </div>
+    <div class="cell">
+      <span class="label">:hover — dual-avatar amb eliminar visible</span>
+      <button class="item-row state-hover" type="button" aria-label="Moure Oli a A comprar. Afegit per Usuari A, mogut per Usuari B">
+        <span class="indicator pantry" aria-hidden="true"></span>
+        <span class="name">Oli</span>
+        <span class="avatars" aria-hidden="true">
+          <span class="avatar" title="Afegit per Usuari A">🐦</span>
+          <span class="avatar-link">↩</span>
+          <span class="avatar" title="Mogut per Usuari B">🦊</span>
+        </span>
+        <button class="delete-btn" type="button" aria-label="Eliminar Oli" tabindex="-1">🗑</button>
+      </button>
+    </div>
+  </div>
+</body>
+</html>

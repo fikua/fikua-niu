@@ -1,0 +1,147 @@
+<!-- @dsCard group="Components" -->
+<!DOCTYPE html>
+<html lang="ca">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Niu — Component: TabBar i Avatar</title>
+<link rel="stylesheet" href="./tokens.css">
+<style>
+  body {
+    margin: 0;
+    padding: var(--space-xl);
+    background: var(--color-bg);
+    color: var(--color-text-primary);
+    font-family: var(--font-family-base);
+  }
+  h1 { font-size: var(--type-title-size); line-height: var(--type-title-line); font-weight: var(--type-title-weight); }
+  h2 { font-size: 18px; margin-top: var(--space-2xl); border-bottom: 1px solid var(--color-border); padding-bottom: var(--space-sm); }
+  p.intro { color: var(--color-text-secondary); max-width: 640px; }
+  .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: var(--space-lg); margin-top: var(--space-md); }
+  .cell { display: flex; flex-direction: column; gap: var(--space-sm); }
+  .cell .label { font-size: var(--type-caption-size); color: var(--color-text-secondary); font-weight: var(--type-body-strong-weight); }
+
+  /* TabBar, §8.4.6 */
+  .tabbar {
+    display: flex;
+    background: var(--color-surface);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
+    overflow: hidden;
+  }
+  .tab {
+    flex: 1 1 0;
+    min-height: var(--touch-target-min);
+    min-width: var(--touch-target-min);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: var(--space-xs);
+    border: none;
+    background: transparent;
+    font-family: inherit;
+    font-size: var(--type-body-size);
+    line-height: var(--type-body-line);
+    color: var(--color-text-secondary);
+    cursor: pointer;
+    padding: var(--space-sm);
+    box-sizing: border-box;
+    border-bottom: 3px solid transparent;
+  }
+  .tab.is-active {
+    color: var(--color-text-primary);
+    font-weight: var(--type-body-strong-weight);
+  }
+  .tab.is-active.tab-pantry { border-bottom-color: var(--color-moss); }
+  .tab.is-active.tab-shopping { border-bottom-color: var(--color-terracotta-hover); }
+  .tab.state-focus { outline: 2px solid var(--color-focus-ring); outline-offset: -2px; }
+  .tab.state-active { background: var(--color-surface-soft); }
+
+  /* Avatar, §8.4.7 */
+  .avatar-demo {
+    display: flex;
+    align-items: center;
+    gap: var(--space-sm);
+  }
+  .avatar {
+    border-radius: 50%;
+    background: var(--color-surface-soft);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex: 0 0 auto;
+  }
+  .avatar.size-desktop { width: 28px; height: 28px; font-size: 16px; }
+  .avatar.size-mobile { width: 32px; height: 32px; font-size: 18px; }
+  .avatar-link { color: var(--color-text-secondary); font-size: 12px; }
+</style>
+</head>
+<body>
+  <h1>Niu — TabBar (§8.4.6) i Avatar (§8.4.7)</h1>
+  <p class="intro">TabBar: subratllat de 3px del color de la caixa corresponent (moss per Rebost, terracotta-hover text-safe per A comprar). Anell de focus al voltant de tota la zona tàctil (mínim 44×44px).</p>
+
+  <h2>TabBar — estats</h2>
+  <div class="grid">
+    <div class="cell">
+      <span class="label">Default — "A comprar" activa</span>
+      <div class="tabbar" role="tablist" aria-label="Seccions">
+        <button class="tab is-active tab-shopping" role="tab" aria-selected="true" type="button">🛒 Comprar (2)</button>
+        <button class="tab" role="tab" aria-selected="false" type="button">🥫 Rebost (2)</button>
+      </div>
+    </div>
+    <div class="cell">
+      <span class="label">"Rebost" activa</span>
+      <div class="tabbar" role="tablist" aria-label="Seccions">
+        <button class="tab" role="tab" aria-selected="false" type="button">🛒 Comprar (2)</button>
+        <button class="tab is-active tab-pantry" role="tab" aria-selected="true" type="button">🥫 Rebost (2)</button>
+      </div>
+    </div>
+    <div class="cell">
+      <span class="label">:focus-visible sobre tota la zona tàctil</span>
+      <div class="tabbar" role="tablist" aria-label="Seccions">
+        <button class="tab is-active tab-shopping state-focus" role="tab" aria-selected="true" type="button">🛒 Comprar (2)</button>
+        <button class="tab" role="tab" aria-selected="false" type="button">🥫 Rebost (2)</button>
+      </div>
+    </div>
+    <div class="cell">
+      <span class="label">:active / premut — fons surface-soft 100ms</span>
+      <div class="tabbar" role="tablist" aria-label="Seccions">
+        <button class="tab is-active tab-shopping" role="tab" aria-selected="true" type="button">🛒 Comprar (2)</button>
+        <button class="tab state-active" role="tab" aria-selected="false" type="button">🥫 Rebost (2)</button>
+      </div>
+    </div>
+  </div>
+
+  <h2>Avatar — mides i variants</h2>
+  <div class="grid">
+    <div class="cell">
+      <span class="label">Default — escriptori (28px)</span>
+      <div class="avatar-demo">
+        <span class="avatar size-desktop" title="Afegit per Usuari A">🐦</span>
+      </div>
+    </div>
+    <div class="cell">
+      <span class="label">Default — mòbil (32px, llegibilitat tàctil)</span>
+      <div class="avatar-demo">
+        <span class="avatar size-mobile" title="Afegit per Usuari A">🐦</span>
+      </div>
+    </div>
+    <div class="cell">
+      <span class="label">Dos avatars — afegit ≠ mogut (escriptori)</span>
+      <div class="avatar-demo">
+        <span class="avatar size-desktop" title="Afegit per Usuari A">🐦</span>
+        <span class="avatar-link" aria-hidden="true">↩</span>
+        <span class="avatar size-desktop" title="Mogut per Usuari B">🦊</span>
+      </div>
+    </div>
+    <div class="cell">
+      <span class="label">Dos avatars — afegit ≠ mogut (mòbil)</span>
+      <div class="avatar-demo">
+        <span class="avatar size-mobile" title="Afegit per Usuari B">🦊</span>
+        <span class="avatar-link" aria-hidden="true">↩</span>
+        <span class="avatar size-mobile" title="Mogut per Usuari A">🐦</span>
+      </div>
+    </div>
+  </div>
+</body>
+</html>

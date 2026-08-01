@@ -1,0 +1,206 @@
+<!-- @dsCard group="Components" -->
+<!DOCTYPE html>
+<html lang="ca">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Niu — Component: AddItemInput</title>
+<link rel="stylesheet" href="./tokens.css">
+<style>
+  body {
+    margin: 0;
+    padding: var(--space-xl);
+    background: var(--color-bg);
+    color: var(--color-text-primary);
+    font-family: var(--font-family-base);
+  }
+  h1 { font-size: var(--type-title-size); line-height: var(--type-title-line); font-weight: var(--type-title-weight); }
+  h2 { font-size: 18px; margin-top: var(--space-2xl); border-bottom: 1px solid var(--color-border); padding-bottom: var(--space-sm); }
+  p.intro { color: var(--color-text-secondary); max-width: 640px; }
+  .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(360px, 1fr)); gap: var(--space-lg); margin-top: var(--space-md); }
+  .cell { display: flex; flex-direction: column; gap: var(--space-sm); }
+  .cell .label { font-size: var(--type-caption-size); color: var(--color-text-secondary); font-weight: var(--type-body-strong-weight); }
+
+  .add-input-group {
+    display: flex;
+    align-items: center;
+    gap: var(--space-sm);
+    background: var(--color-surface);
+    border-radius: var(--radius-md);
+    border: 1px solid var(--color-border);
+    padding: var(--space-sm) var(--space-md);
+  }
+  .add-input-group.state-focus {
+    border: 2px solid var(--color-focus-ring);
+    box-shadow: var(--shadow-md);
+    padding: calc(var(--space-sm) - 1px) calc(var(--space-md) - 1px);
+  }
+  .add-input-group.state-error {
+    border: 2px solid var(--color-error);
+    padding: calc(var(--space-sm) - 1px) calc(var(--space-md) - 1px);
+  }
+  .add-input-group input {
+    flex: 1 1 auto;
+    border: none;
+    background: transparent;
+    font-family: inherit;
+    font-size: var(--type-body-size);
+    line-height: var(--type-body-line);
+    color: var(--color-text-primary);
+    outline: none;
+  }
+  .add-input-group input::placeholder { color: var(--color-text-secondary); }
+  .add-input-group input:disabled { color: var(--color-text-secondary); }
+
+  .add-btn {
+    flex: 0 0 auto;
+    background: var(--color-moss);
+    color: #fff;
+    border: none;
+    border-radius: var(--radius-sm);
+    padding: var(--space-xs) var(--space-md);
+    font-family: inherit;
+    font-size: var(--type-button-size);
+    line-height: var(--type-button-line);
+    font-weight: var(--type-button-weight);
+    cursor: pointer;
+  }
+  .add-btn.state-submitting { opacity: 0.6; cursor: default; }
+  .add-btn:focus-visible { outline: 2px solid var(--color-focus-ring); outline-offset: 2px; }
+
+  .field-footer {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: var(--space-md);
+    margin-top: var(--space-xs);
+  }
+  .counter {
+    font-size: var(--type-caption-size);
+    line-height: var(--type-caption-line);
+    color: var(--color-text-secondary);
+    white-space: nowrap;
+  }
+  .error-msg {
+    background: var(--color-error-bg);
+    color: var(--color-error);
+    font-size: var(--type-caption-size);
+    line-height: var(--type-caption-line);
+    border-radius: var(--radius-sm);
+    padding: var(--space-xs) var(--space-sm);
+    flex: 1 1 auto;
+  }
+</style>
+</head>
+<body>
+  <h1>Niu — AddItemInput (§8.4.3)</h1>
+  <p class="intro">Placeholder "+ afegir un ítem…" en <code>color.text-secondary</code>. Comptador "{n}/200" sempre visible. Missatges d'error en <code>type.caption</code> + <code>color.error</code> sobre <code>color.error-bg</code>, <code>role="alert"</code>.</p>
+
+  <h2>Default i focus</h2>
+  <div class="grid">
+    <div class="cell">
+      <span class="label">Default</span>
+      <div class="add-input-group">
+        <input type="text" placeholder="+ afegir un ítem…" aria-label="Afegir un ítem">
+        <button class="add-btn" type="button">Afegir</button>
+      </div>
+      <div class="field-footer">
+        <span></span>
+        <span class="counter">0/200</span>
+      </div>
+    </div>
+    <div class="cell">
+      <span class="label">:focus-visible — placeholder desapareix en escriure</span>
+      <div class="add-input-group state-focus">
+        <input type="text" value="Iogurts" aria-label="Afegir un ítem">
+        <button class="add-btn" type="button">Afegir</button>
+      </div>
+      <div class="field-footer">
+        <span></span>
+        <span class="counter">7/200</span>
+      </div>
+    </div>
+    <div class="cell">
+      <span class="label">Enviant (espera de xarxa) — botó opacitat 0.6, input disabled</span>
+      <div class="add-input-group">
+        <input type="text" value="Iogurts" disabled aria-label="Afegir un ítem">
+        <button class="add-btn state-submitting" type="button" disabled>Afegir</button>
+      </div>
+      <div class="field-footer">
+        <span></span>
+        <span class="counter">7/200</span>
+      </div>
+    </div>
+    <div class="cell">
+      <span class="label">Èxit — s'esborra, recupera focus, fade-in 150ms a la fila nova</span>
+      <div class="add-input-group state-focus">
+        <input type="text" value="" placeholder="+ afegir un ítem…" aria-label="Afegir un ítem">
+        <button class="add-btn" type="button">Afegir</button>
+      </div>
+      <div class="field-footer">
+        <span></span>
+        <span class="counter">0/200</span>
+      </div>
+    </div>
+  </div>
+
+  <h2>Estats d'error de validació (EC-01/EC-02/EC-03/EC-05)</h2>
+  <div class="grid">
+    <div class="cell">
+      <span class="label">Buit / només espais (EC-01)</span>
+      <div class="add-input-group state-error">
+        <input type="text" value="   " aria-label="Afegir un ítem" aria-invalid="true" aria-describedby="err-empty">
+        <button class="add-btn" type="button">Afegir</button>
+      </div>
+      <div class="field-footer">
+        <span class="error-msg" id="err-empty" role="alert">Escriu un nom abans d'afegir.</span>
+        <span class="counter">3/200</span>
+      </div>
+    </div>
+    <div class="cell">
+      <span class="label">Massa llarg, &gt;200 caràcters (EC-02/EC-03)</span>
+      <div class="add-input-group state-error">
+        <input type="text" value="Formatge curat de cabra amb herbes de Provença i un toc de mel de romaní que en Marc va portar de la Cerdanya l'estiu passat quan vam anar a caminar per les valls altes i vam parar a comprar productes de pagès al mercat local del poble" aria-label="Afegir un ítem" aria-invalid="true" aria-describedby="err-toolong">
+        <button class="add-btn" type="button">Afegir</button>
+      </div>
+      <div class="field-footer">
+        <span class="error-msg" id="err-toolong" role="alert">Massa llarg — màxim 200 caràcters (portes 238/200).</span>
+        <span class="counter">238/200</span>
+      </div>
+    </div>
+    <div class="cell">
+      <span class="label">Caràcters de control no vàlids (EC-05)</span>
+      <div class="add-input-group state-error">
+        <input type="text" value="Llet​" aria-label="Afegir un ítem" aria-invalid="true" aria-describedby="err-control">
+        <button class="add-btn" type="button">Afegir</button>
+      </div>
+      <div class="field-footer">
+        <span class="error-msg" id="err-control" role="alert">Aquest nom conté caràcters no vàlids.</span>
+        <span class="counter">4/200</span>
+      </div>
+    </div>
+    <div class="cell">
+      <span class="label">Duplicat rebutjat (EC-06) — anomena la caixa, text es conserva</span>
+      <div class="add-input-group state-error">
+        <input type="text" value="Llet" aria-label="Afegir un ítem" aria-invalid="true" aria-describedby="err-dup" autofocus>
+        <button class="add-btn" type="button">Afegir</button>
+      </div>
+      <div class="field-footer">
+        <span class="error-msg" id="err-dup" role="alert">«Llet» ja hi és a Rebost.</span>
+        <span class="counter">4/200</span>
+      </div>
+    </div>
+    <div class="cell">
+      <span class="label">Comptador — aria-live actiu només a ≤20 caràcters restants</span>
+      <div class="add-input-group state-focus">
+        <input type="text" value="Formatge curat de cabra amb herbes de Provença i un toc" aria-label="Afegir un ítem">
+        <button class="add-btn" type="button">Afegir</button>
+      </div>
+      <div class="field-footer">
+        <span></span>
+        <span class="counter" aria-live="polite">185/200</span>
+      </div>
+    </div>
+  </div>
+</body>
+</html>

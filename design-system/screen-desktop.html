@@ -1,0 +1,719 @@
+<!-- @dsCard group="Screens" -->
+<!DOCTYPE html>
+<html lang="ca">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Niu — Pantalla escriptori</title>
+<link rel="stylesheet" href="./tokens.css">
+<style>
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--color-bg);
+    color: var(--color-text-primary);
+    font-family: var(--font-family-base);
+    min-height: 100vh;
+  }
+  .page {
+    max-width: var(--layout-max-content);
+    margin: 0 auto;
+    padding: 0 var(--space-xl) var(--space-2xl);
+  }
+  header.app-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: var(--space-lg) 0;
+  }
+  header.app-header .wordmark {
+    font-size: var(--type-title-size);
+    line-height: var(--type-title-line);
+    font-weight: var(--type-title-weight);
+    color: var(--color-moss);
+  }
+  .user-chip {
+    display: flex;
+    align-items: center;
+    gap: var(--space-sm);
+    background: var(--color-surface);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-lg);
+    padding: var(--space-xs) var(--space-md);
+    font-size: var(--type-body-size);
+  }
+  .user-chip .avatar {
+    width: 28px; height: 28px;
+    border-radius: 50%;
+    background: var(--color-surface-soft);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 16px;
+  }
+
+  .boxes {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: var(--space-lg);
+    align-items: start;
+  }
+
+  .box {
+    background: var(--color-surface);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-lg);
+    box-shadow: var(--shadow-md);
+    padding: var(--space-lg);
+    position: relative;
+  }
+  .box .box-header {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    margin-bottom: var(--space-md);
+  }
+  .box .box-title {
+    font-size: var(--type-title-size);
+    line-height: var(--type-title-line);
+    font-weight: var(--type-title-weight);
+    margin: 0;
+  }
+  .box .box-count {
+    font-size: var(--type-caption-size);
+    color: var(--color-text-secondary);
+  }
+  .box hr {
+    border: none;
+    border-top: 1px solid var(--color-border);
+    margin: 0 0 var(--space-md);
+  }
+
+  .item-list {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-sm);
+    min-height: 60px;
+  }
+
+  .item-row {
+    display: flex;
+    align-items: center;
+    gap: var(--space-sm);
+    background: var(--color-surface-soft);
+    border-radius: var(--radius-md);
+    box-shadow: var(--shadow-sm);
+    padding: var(--space-sm) var(--space-md);
+    font-size: var(--type-body-size);
+    line-height: var(--type-body-line);
+    width: 100%;
+    border: none;
+    text-align: left;
+    font-family: inherit;
+    color: var(--color-text-primary);
+    cursor: pointer;
+    position: relative;
+    min-height: 44px;
+  }
+  .item-row:hover { background: var(--color-surface); box-shadow: var(--shadow-md); }
+  .item-row:hover .delete-btn { visibility: visible; }
+  .item-row:focus-visible {
+    outline: 2px solid var(--color-focus-ring);
+    outline-offset: 2px;
+  }
+  .item-row:focus-visible .delete-btn { visibility: visible; }
+  .item-row.is-pressing { transform: scale(0.98); }
+  .item-row.is-pending { opacity: 0.85; box-shadow: var(--shadow-lg); }
+  .item-row.just-added { animation: fade-in 150ms ease-out; }
+  @keyframes fade-in { from { opacity: 0; } to { opacity: 1; } }
+  @media (prefers-reduced-motion: reduce) {
+    .item-row.just-added { animation: none; }
+  }
+
+  .indicator { flex: 0 0 auto; width: 8px; height: 8px; border-radius: 50%; }
+  .indicator.shopping { border: 2px solid var(--color-text-secondary); background: transparent; width: 4px; height: 4px; }
+  .indicator.pantry { background: var(--color-moss); }
+  .item-name { flex: 1 1 auto; }
+  .avatars { display: flex; align-items: center; gap: var(--space-xs); flex: 0 0 auto; }
+  .avatar { width: 28px; height: 28px; border-radius: 50%; background: var(--color-surface); display: flex; align-items: center; justify-content: center; font-size: 16px; }
+  .avatar-link { color: var(--color-text-secondary); font-size: 12px; }
+  .delete-btn {
+    flex: 0 0 auto;
+    width: 32px; height: 32px;
+    min-width: 32px; min-height: 32px;
+    border-radius: var(--radius-sm);
+    border: none;
+    background: transparent;
+    color: var(--color-error);
+    display: flex;
+    align-items: center; justify-content: center;
+    cursor: pointer;
+    font-size: 16px;
+    visibility: hidden;
+  }
+  .delete-btn:focus-visible { outline: 2px solid var(--color-focus-ring); outline-offset: 2px; visibility: visible; }
+
+  .empty-state {
+    text-align: center;
+    padding: var(--space-2xl) var(--space-lg);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: var(--space-sm);
+    border-radius: var(--radius-md);
+    transition: background-color 600ms ease-out;
+  }
+  .empty-state .icon { font-size: 32px; }
+  .empty-state .msg { color: var(--color-text-secondary); margin: 0; }
+  .empty-state.flash { background: var(--color-success-bg); }
+
+  .add-input-group {
+    display: flex;
+    align-items: center;
+    gap: var(--space-sm);
+    background: var(--color-surface);
+    border-radius: var(--radius-md);
+    border: 1px solid var(--color-border);
+    padding: var(--space-sm) var(--space-md);
+    margin-top: var(--space-md);
+  }
+  .add-input-group:focus-within {
+    border: 2px solid var(--color-focus-ring);
+    box-shadow: var(--shadow-md);
+    padding: calc(var(--space-sm) - 1px) calc(var(--space-md) - 1px);
+  }
+  .add-input-group.has-error {
+    border: 2px solid var(--color-error);
+    padding: calc(var(--space-sm) - 1px) calc(var(--space-md) - 1px);
+  }
+  .add-input-group input {
+    flex: 1 1 auto;
+    border: none;
+    background: transparent;
+    font-family: inherit;
+    font-size: var(--type-body-size);
+    color: var(--color-text-primary);
+    outline: none;
+  }
+  .add-input-group input::placeholder { color: var(--color-text-secondary); }
+  .add-btn {
+    flex: 0 0 auto;
+    background: var(--color-moss);
+    color: #fff;
+    border: none;
+    border-radius: var(--radius-sm);
+    padding: var(--space-xs) var(--space-md);
+    font-family: inherit;
+    font-size: var(--type-button-size);
+    font-weight: var(--type-button-weight);
+    cursor: pointer;
+    min-height: 36px;
+  }
+  .add-btn:focus-visible { outline: 2px solid var(--color-focus-ring); outline-offset: 2px; }
+  .add-btn:hover { background: var(--color-moss-hover); }
+  .add-btn:active { background: var(--color-moss-active); }
+  .add-footer {
+    display: flex;
+    justify-content: space-between;
+    gap: var(--space-md);
+    margin-top: var(--space-xs);
+  }
+  .counter { font-size: var(--type-caption-size); color: var(--color-text-secondary); }
+  .error-msg {
+    background: var(--color-error-bg);
+    color: var(--color-error);
+    font-size: var(--type-caption-size);
+    border-radius: var(--radius-sm);
+    padding: var(--space-xs) var(--space-sm);
+  }
+
+  /* Toast */
+  .toast-wrap {
+    position: fixed;
+    bottom: var(--space-lg);
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 20;
+  }
+  .toast {
+    background: var(--color-surface);
+    border-radius: var(--radius-md);
+    box-shadow: var(--shadow-lg);
+    padding: var(--space-md);
+    display: flex;
+    align-items: center;
+    gap: var(--space-sm);
+    font-size: var(--type-toast-size);
+    line-height: var(--type-toast-line);
+    animation: toast-in 200ms ease-out;
+  }
+  @keyframes toast-in { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
+  .toast .icon { color: var(--color-error); }
+  .toast .close-btn {
+    background: transparent; border: none; color: var(--color-text-secondary);
+    font-size: 18px; cursor: pointer; width: 32px; height: 32px; border-radius: var(--radius-sm);
+  }
+  .toast .close-btn:focus-visible { outline: 2px solid var(--color-focus-ring); outline-offset: 2px; }
+
+  /* Confetti */
+  #confetti-layer {
+    position: fixed;
+    inset: 0;
+    pointer-events: none;
+    z-index: 30;
+    overflow: hidden;
+  }
+  .confetti-piece {
+    position: absolute;
+    top: -10px;
+    width: 8px;
+    height: 8px;
+    border-radius: 2px;
+    animation-name: confetti-fall;
+    animation-timing-function: cubic-bezier(0.4, 0, 1, 1);
+    animation-fill-mode: forwards;
+  }
+  @keyframes confetti-fall {
+    from { transform: translateY(0) rotate(0deg); opacity: 1; }
+    to { transform: translateY(70vh) rotate(360deg); opacity: 0; }
+  }
+
+  .reset-bar {
+    margin-top: var(--space-xl);
+    text-align: center;
+  }
+  .reset-btn {
+    background: transparent;
+    border: 1px solid var(--color-border);
+    color: var(--color-text-secondary);
+    border-radius: var(--radius-md);
+    padding: var(--space-sm) var(--space-md);
+    font-family: inherit;
+    font-size: var(--type-caption-size);
+    cursor: pointer;
+  }
+  .reset-btn:focus-visible { outline: 2px solid var(--color-focus-ring); outline-offset: 2px; }
+</style>
+</head>
+<body>
+  <div class="page">
+    <header class="app-header">
+      <span class="wordmark">niu</span>
+      <div class="user-chip">
+        <span class="avatar" aria-hidden="true">🐦</span>
+        <span>Usuari A</span>
+      </div>
+    </header>
+
+    <!-- §8.7 aria-live region: shared, immediately after header, before both boxes -->
+    <div id="live-region" class="sr-only" role="status" aria-live="polite" aria-atomic="true"></div>
+
+    <div class="boxes">
+      <section class="box" id="box-shopping" role="region" aria-label="A comprar">
+        <div class="box-header">
+          <h2 class="box-title"><span aria-hidden="true">🛒</span> A comprar</h2>
+          <span class="box-count" id="count-shopping">(2)</span>
+        </div>
+        <hr>
+        <ul class="item-list" id="list-shopping"></ul>
+        <div class="add-input-group" id="add-group">
+          <input type="text" id="add-input" placeholder="+ afegir un ítem…" aria-label="Afegir un ítem" maxlength="200">
+          <button class="add-btn" id="add-btn" type="button">Afegir</button>
+        </div>
+        <div class="add-footer">
+          <span class="error-msg" id="add-error" role="alert" hidden></span>
+          <span class="counter" id="add-counter">0/200</span>
+        </div>
+      </section>
+
+      <section class="box" id="box-pantry" role="region" aria-label="Rebost">
+        <div class="box-header">
+          <h2 class="box-title"><span aria-hidden="true">🥫</span> Rebost</h2>
+          <span class="box-count" id="count-pantry">(2)</span>
+        </div>
+        <hr>
+        <ul class="item-list" id="list-pantry"></ul>
+      </section>
+    </div>
+
+    <div class="reset-bar">
+      <button class="reset-btn" id="reset-btn" type="button">↺ Reiniciar la demo</button>
+    </div>
+  </div>
+
+  <div class="toast-wrap" id="toast-wrap"></div>
+  <div id="confetti-layer" aria-hidden="true"></div>
+
+  <script type="module">
+    /*
+      Interactive reference for §8.3.1 (desktop layout), §8.6.1 (FLIP),
+      §8.6.2 (reduced-motion cross-fade), §8.6.3 (confetti) and §8.7
+      (accessibility narrative). This is a design preview, not the shipped
+      app — the real client lives in app/web/ and talks to the Go API.
+    */
+
+    const FLIP_DURATION = 250; // ms, §8.6.1
+    const FLIP_EASING = 'cubic-bezier(0, 0, 0.2, 1)';
+    const CROSSFADE_DURATION = 150; // ms, §8.6.2 (150 out + 150 in = ~300 total)
+
+    const reduceMotionQuery = window.matchMedia('(prefers-reduced-motion: reduce)');
+    const prefersReducedMotion = () => reduceMotionQuery.matches;
+
+    let items = [
+      { id: 1, name: 'Llet', location: 'shopping', addedBy: 'A', movedBy: null },
+      { id: 2, name: 'Pa', location: 'shopping', addedBy: 'B', movedBy: null },
+      { id: 3, name: 'Arròs', location: 'pantry', addedBy: 'B', movedBy: 'B' },
+      { id: 4, name: 'Oli', location: 'pantry', addedBy: 'A', movedBy: 'B' },
+    ];
+    let nextId = 5;
+    let confettiCelebratedForThisEmptying = false;
+
+    const userNames = { A: 'Usuari A', B: 'Usuari B' };
+    const userEmoji = { A: '🐦', B: '🦊' };
+
+    const listShopping = document.getElementById('list-shopping');
+    const listPantry = document.getElementById('list-pantry');
+    const countShopping = document.getElementById('count-shopping');
+    const countPantry = document.getElementById('count-pantry');
+    const liveRegion = document.getElementById('live-region');
+    const addInput = document.getElementById('add-input');
+    const addBtn = document.getElementById('add-btn');
+    const addGroup = document.getElementById('add-group');
+    const addError = document.getElementById('add-error');
+    const addCounter = document.getElementById('add-counter');
+    const toastWrap = document.getElementById('toast-wrap');
+    const confettiLayer = document.getElementById('confetti-layer');
+
+    function announce(text) {
+      liveRegion.textContent = '';
+      // Force a DOM mutation even if the text is identical to the previous announcement.
+      requestAnimationFrame(() => { liveRegion.textContent = text; });
+    }
+
+    function boxLabel(location) {
+      return location === 'shopping' ? 'A comprar' : 'Rebost';
+    }
+
+    function renderEmptyState(list, location) {
+      const wrap = document.createElement('li');
+      wrap.style.listStyle = 'none';
+      const el = document.createElement('div');
+      el.className = 'empty-state';
+      el.id = location === 'shopping' ? 'empty-shopping' : 'empty-pantry';
+      const icon = document.createElement('span');
+      icon.className = 'icon';
+      icon.setAttribute('aria-hidden', 'true');
+      icon.textContent = '🌿';
+      const msg = document.createElement('p');
+      msg.className = 'msg';
+      msg.textContent = location === 'shopping'
+        ? 'Res per comprar ara mateix.'
+        : 'El rebost encara està buit.';
+      el.appendChild(icon);
+      el.appendChild(msg);
+      wrap.appendChild(el);
+      list.appendChild(wrap);
+    }
+
+    function renderAvatars(item) {
+      const wrap = document.createElement('span');
+      wrap.className = 'avatars';
+      wrap.setAttribute('aria-hidden', 'true');
+      const addedAvatar = document.createElement('span');
+      addedAvatar.className = 'avatar';
+      addedAvatar.title = `Afegit per ${userNames[item.addedBy]}`;
+      addedAvatar.textContent = userEmoji[item.addedBy];
+      wrap.appendChild(addedAvatar);
+
+      if (item.movedBy && item.movedBy !== item.addedBy) {
+        const link = document.createElement('span');
+        link.className = 'avatar-link';
+        link.textContent = '↩';
+        wrap.appendChild(link);
+        const movedAvatar = document.createElement('span');
+        movedAvatar.className = 'avatar';
+        movedAvatar.title = `Mogut per ${userNames[item.movedBy]}`;
+        movedAvatar.textContent = userEmoji[item.movedBy];
+        wrap.appendChild(movedAvatar);
+      }
+      return wrap;
+    }
+
+    function ariaLabelFor(item) {
+      const target = item.location === 'shopping' ? 'Rebost' : 'A comprar';
+      let label = `Moure ${item.name} a ${target}`;
+      if (item.movedBy && item.movedBy !== item.addedBy) {
+        label += `. Afegit per ${userNames[item.addedBy]}, mogut per ${userNames[item.movedBy]}`;
+      }
+      return label;
+    }
+
+    function renderRow(item) {
+      const li = document.createElement('li');
+      li.style.listStyle = 'none';
+      const row = document.createElement('button');
+      row.type = 'button';
+      row.className = 'item-row';
+      row.dataset.id = item.id;
+      row.setAttribute('aria-label', ariaLabelFor(item));
+
+      const indicator = document.createElement('span');
+      indicator.className = `indicator ${item.location === 'shopping' ? 'shopping' : 'pantry'}`;
+      indicator.setAttribute('aria-hidden', 'true');
+      row.appendChild(indicator);
+
+      const name = document.createElement('span');
+      name.className = 'item-name';
+      name.textContent = item.name;
+      row.appendChild(name);
+
+      row.appendChild(renderAvatars(item));
+
+      const del = document.createElement('button');
+      del.type = 'button';
+      del.className = 'delete-btn';
+      del.setAttribute('aria-label', `Eliminar ${item.name}`);
+      del.tabIndex = -1; // managed tabindex: only tabbable while the row has focus (§8.7)
+      del.textContent = '🗑';
+      del.addEventListener('click', (e) => {
+        e.stopPropagation();
+        deleteItem(item.id);
+      });
+      row.appendChild(del);
+
+      row.addEventListener('focus', () => { del.tabIndex = 0; });
+      row.addEventListener('blur', () => { del.tabIndex = -1; });
+
+      row.addEventListener('mousedown', () => row.classList.add('is-pressing'));
+      row.addEventListener('mouseup', () => row.classList.remove('is-pressing'));
+      row.addEventListener('mouseleave', () => row.classList.remove('is-pressing'));
+
+      row.addEventListener('click', () => moveItem(item.id));
+      // Enter/Space activation is native <button> behaviour — no extra keydown handler needed.
+
+      li.appendChild(row);
+      return li;
+    }
+
+    function deleteItem(id) {
+      items = items.filter((i) => i.id !== id);
+      render();
+    }
+
+    function render({ flipFromRects } = {}) {
+      const shoppingItems = items.filter((i) => i.location === 'shopping');
+      const pantryItems = items.filter((i) => i.location === 'pantry');
+
+      countShopping.textContent = `(${shoppingItems.length})`;
+      countPantry.textContent = `(${pantryItems.length})`;
+
+      listShopping.innerHTML = '';
+      listPantry.innerHTML = '';
+
+      if (shoppingItems.length === 0) {
+        renderEmptyState(listShopping, 'shopping');
+      } else {
+        shoppingItems.forEach((i) => listShopping.appendChild(renderRow(i)));
+      }
+
+      if (pantryItems.length === 0) {
+        renderEmptyState(listPantry, 'pantry');
+      } else {
+        pantryItems.forEach((i) => listPantry.appendChild(renderRow(i)));
+      }
+
+      if (flipFromRects) {
+        playFlip(flipFromRects);
+      }
+    }
+
+    function captureRects() {
+      const rects = new Map();
+      document.querySelectorAll('.item-row').forEach((row) => {
+        rects.set(row.dataset.id, row.getBoundingClientRect());
+      });
+      return rects;
+    }
+
+    function playFlip(firstRects) {
+      const lastRects = captureRects();
+      lastRects.forEach((lastRect, id) => {
+        const firstRect = firstRects.get(id);
+        if (!firstRect) return; // newly created row, nothing to animate from
+        const dx = firstRect.left - lastRect.left;
+        const dy = firstRect.top - lastRect.top;
+        if (dx === 0 && dy === 0) return;
+        const row = document.querySelector(`.item-row[data-id="${id}"]`);
+        if (!row) return;
+
+        if (prefersReducedMotion()) {
+          // §8.6.2 — cross-fade instead of flight, no transform/position shift.
+          row.animate(
+            [{ opacity: 0 }, { opacity: 1 }],
+            { duration: CROSSFADE_DURATION, easing: 'ease-out', fill: 'both' }
+          );
+          return;
+        }
+
+        // §8.6.1 — FLIP via Web Animations API, transform only.
+        row.animate(
+          [
+            { transform: `translate(${dx}px, ${dy}px) scale(1)`, boxShadow: 'var(--shadow-sm)', offset: 0 },
+            { transform: `translate(${dx * 0.4}px, ${dy * 0.4}px) scale(1.03)`, boxShadow: 'var(--shadow-lg)', offset: 0.5 },
+            { transform: 'translate(0, 0) scale(1)', boxShadow: 'var(--shadow-sm)', offset: 1 },
+          ],
+          { duration: FLIP_DURATION, easing: FLIP_EASING, fill: 'both' }
+        );
+      });
+    }
+
+    function moveItem(id) {
+      const item = items.find((i) => i.id === id);
+      if (!item) return;
+
+      const firstRects = captureRects();
+      const wasShoppingEmptying = items.filter((i) => i.location === 'shopping').length === 1
+        && item.location === 'shopping';
+
+      const previousLocation = item.location;
+      item.location = item.location === 'shopping' ? 'pantry' : 'shopping';
+      item.movedBy = 'A'; // demo assumes the local user is Usuari A
+
+      render({ flipFromRects: firstRects });
+      announce(`${item.name} mogut a ${boxLabel(item.location)}.`);
+
+      if (wasShoppingEmptying && item.location === 'pantry') {
+        celebrateShoppingEmptied();
+      } else if (item.location === 'shopping') {
+        // Shopping box has at least one item again — re-arm the confetti trigger.
+        confettiCelebratedForThisEmptying = false;
+      }
+
+      // Optimistic-UI note: this preview has no server, so pending/rollback
+      // states are demonstrated statically in component-item-row.html
+      // rather than simulated here on every click.
+    }
+
+    function celebrateShoppingEmptied() {
+      if (confettiCelebratedForThisEmptying) return; // §8.6.3 — fire once per emptying
+      confettiCelebratedForThisEmptying = true;
+
+      if (prefersReducedMotion()) {
+        const emptyEl = document.getElementById('empty-shopping');
+        if (emptyEl) {
+          emptyEl.classList.add('flash');
+          setTimeout(() => emptyEl.classList.remove('flash'), 600);
+        }
+        return;
+      }
+
+      const colors = ['#3F6B4A', '#C1552C', '#E8C468']; // moss, terracotta, confetti-yellow
+      const boxRect = document.getElementById('box-shopping').getBoundingClientRect();
+      const originX = boxRect.left + boxRect.width / 2;
+      const originY = boxRect.top;
+      const count = 27; // ~24-30 per §8.6.3
+
+      for (let i = 0; i < count; i++) {
+        const piece = document.createElement('span');
+        piece.className = 'confetti-piece';
+        piece.style.background = colors[i % colors.length];
+        piece.style.left = `${originX + (Math.random() - 0.5) * 160}px`;
+        piece.style.top = `${originY}px`;
+        piece.style.animationDuration = `${1000 + Math.random() * 400}ms`; // ~1200ms
+        confettiLayer.appendChild(piece);
+        piece.addEventListener('animationend', () => piece.remove());
+      }
+    }
+
+    function validateName(raw) {
+      const trimmed = raw.trim();
+      if (trimmed.length === 0) {
+        return { ok: false, message: "Escriu un nom abans d'afegir." };
+      }
+      if (raw.length > 200) {
+        return { ok: false, message: `Massa llarg — màxim 200 caràcters (portes ${raw.length}/200).` };
+      }
+      // eslint-disable-next-line no-control-regex
+      if (/[\x00-\x08\x0B\x0C\x0E-\x1F]/.test(raw)) {
+        return { ok: false, message: 'Aquest nom conté caràcters no vàlids.' };
+      }
+      const dup = items.find((i) => i.name.trim().toLowerCase() === trimmed.toLowerCase());
+      if (dup) {
+        return { ok: false, message: `«${trimmed}» ja hi és a ${boxLabel(dup.location)}.` };
+      }
+      return { ok: true, name: trimmed };
+    }
+
+    function showError(message) {
+      addError.textContent = message;
+      addError.hidden = false;
+      addGroup.classList.add('has-error');
+    }
+
+    function clearError() {
+      addError.hidden = true;
+      addGroup.classList.remove('has-error');
+    }
+
+    function updateCounter() {
+      const len = addInput.value.length;
+      addCounter.textContent = `${len}/200`;
+      // §8.7: counter is aria-live only when <=20 chars remain, to avoid noise.
+      if (200 - len <= 20) {
+        addCounter.setAttribute('aria-live', 'polite');
+      } else {
+        addCounter.removeAttribute('aria-live');
+      }
+    }
+
+    function submitNewItem() {
+      const result = validateName(addInput.value);
+      if (!result.ok) {
+        showError(result.message);
+        addInput.focus(); // focus stays on input, text is NOT cleared (§8.4.3)
+        return;
+      }
+      clearError();
+      items.unshift({ id: nextId++, name: result.name, location: 'shopping', addedBy: 'A', movedBy: null });
+      addInput.value = '';
+      updateCounter();
+      render();
+      addInput.focus();
+      const newRow = listShopping.querySelector('.item-row');
+      if (newRow) newRow.classList.add('just-added');
+      confettiCelebratedForThisEmptying = false; // shopping has items again
+    }
+
+    addBtn.addEventListener('click', submitNewItem);
+    addInput.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') submitNewItem();
+    });
+    addInput.addEventListener('input', updateCounter);
+
+    document.getElementById('reset-btn').addEventListener('click', () => {
+      items = [
+        { id: 1, name: 'Llet', location: 'shopping', addedBy: 'A', movedBy: null },
+        { id: 2, name: 'Pa', location: 'shopping', addedBy: 'B', movedBy: null },
+        { id: 3, name: 'Arròs', location: 'pantry', addedBy: 'B', movedBy: 'B' },
+        { id: 4, name: 'Oli', location: 'pantry', addedBy: 'A', movedBy: 'B' },
+      ];
+      nextId = 5;
+      confettiCelebratedForThisEmptying = false;
+      clearError();
+      addInput.value = '';
+      updateCounter();
+      render();
+    });
+
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape') {
+        toastWrap.innerHTML = '';
+      }
+    });
+
+    render();
+    updateCounter();
+  </script>
+</body>
+</html>
