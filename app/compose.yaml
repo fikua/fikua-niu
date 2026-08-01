@@ -1,0 +1,122 @@
+# Niu — private household app deployment
+#
+# Image: docker.io/fikua/niu (published by the fikua/fikua-niu repo's
+# release.yml on every published release / push to main).
+#
+# Source of truth for this file:
+#   fikua-platform-iac/projects/niu/compose.yaml
+#
+# A copy travels with the app repo at
+# fikua-niu/app/compose.yaml so deploy.yml can push it to the host on
+# every deploy — keep both in sync (same convention as exam-room).
+#
+# Host path on the VPS: /opt/vps/projects/niu/
+#
+# Niu is the platform's first SQLite-backed app: no database container,
+# a single named volume at /data holding niu.db directly (PLAN.md §5.2).
+
+services:
+  # One-shot ownership fix for the named volume. Docker creates a fresh
+  # named volume as root:root, but the niu image runs as the distroless
+  # nonroot user (uid/gid 65532) and has no shell to chown its own
+  # mount — SQLite fails to open the DB file on first boot with
+  # "unable to open database file (14)" otherwise (confirmed locally:
+  # this is not hypothetical, it reproduces on the very first `docker
+  # compose up`). This container runs once, as root, chowns /data, and
+  # exits; niu waits for it to succeed before starting.
+  niu-data-init:
+    image: busybox:1.37
+    container_name: niu-data-init
+    command: ["sh", "-c", "chown -R 65532:65532 /data"]
+    volumes:
+      - niu-data:/data
+    restart: "no"
+
+  niu:
+    image: ${DOCKER_REGISTRY:-fikua}/niu:${NIU_VERSION:-latest}
+    container_name: niu
+    restart: unless-stopped
+    depends_on:
+      niu-data-init:
+        condition: service_completed_successfully
+    environment:
+      NIU_PORT: "8080"
+      NIU_DB_PATH: /data/niu.db
+      NIU_ENV: production
+      # NIU_SESSION_SECRET / NIU_USER_A_* / NIU_USER_B_* become required
+      # at NIU-4 (real auth, PLAN.md §6). Not set here yet — the .env
+      # file on the host gains them when NIU-4 ships. Until then the
+      # NIU-1 auth stub is in effect.
+      NIU_SESSION_SECRET: ${NIU_SESSION_SECRET:-}
+      NIU_USER_A_NAME: ${NIU_USER_A_NAME:-}
+      NIU_USER_A_DISPLAY: ${NIU_USER_A_DISPLAY:-}
+      NIU_USER_A_HASH: ${NIU_USER_A_HASH:-}
+      NIU_USER_B_NAME: ${NIU_USER_B_NAME:-}
+      NIU_USER_B_DISPLAY: ${NIU_USER_B_DISPLAY:-}
+      NIU_USER_B_HASH: ${NIU_USER_B_HASH:-}
+      # OTEL (NIU-3, PLAN.md §5.4) — otel-collector lives in
+      # platform-services/compose.yaml, reachable over traefik-public
+      # (joined below for this, not for Traefik routing). Port 4318 is
+      # OTLP/HTTP; 4317 (gRPC, the Go SDK default) accepts the
+      # connection then resets it and nothing ever arrives — documented
+      # trap, do not "fix" this back to 4317. No auth headers here: the
+      # shared collector holds the Basic auth and forwards to
+      # OpenObserve.
+      OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4318
+      OTEL_EXPORTER_OTLP_PROTOCOL: http/protobuf
+      OTEL_SERVICE_NAME: niu
+      OTEL_TRACES_EXPORTER: otlp
+      OTEL_METRICS_EXPORTER: otlp
+    volumes:
+      - niu-data:/data
+    networks:
+      - traefik-public
+    labels:
+      # fikua.backup.sqlite is the hook scripts/backup-db.sh's SQLite
+      # discovery pass looks for (PLAN.md §5.5) — the value is the path
+      # to the DB file *inside this container*.
+      fikua.backup.sqlite: "/data/niu.db"
+
+      # Direct Cloudflare-proxied A record -> Traefik websecure (443),
+      # NOT the Cloudflare Tunnel `web` entrypoint that internal tools
+      # (dozzle, openobserve, traefik dashboard) use. Cert comes from
+      # the existing *.fikua.com wildcard already configured on the
+      # `cloudflare` certResolver — no new ACME request needed.
+      traefik.enable: "true"
+      traefik.http.routers.niu.rule: "Host(`niu.fikua.com`)"
+      traefik.http.routers.niu.entrypoints: "websecure"
+      traefik.http.routers.niu.tls: "true"
+      traefik.http.routers.niu.service: "niu"
+      traefik.http.services.niu.loadbalancer.server.port: "8080"
+      # Rate limit: mirrors exam-room's. sourcecriterion.requestheadername
+      # is REQUIRED — without it the limiter sees rotating Cloudflare
+      # edge IPs (the ratelimit middleware runs before the
+      # forwardedHeaders/X-Forwarded-For rewrite) and never fires.
+      # Production-confirmed gotcha, do not drop this line.
+      traefik.http.routers.niu.middlewares: "niu-ratelimit"
+      traefik.http.middlewares.niu-ratelimit.ratelimit.average: "10"
+      traefik.http.middlewares.niu-ratelimit.ratelimit.period: "1m"
+      traefik.http.middlewares.niu-ratelimit.ratelimit.burst: "20"
+      traefik.http.middlewares.niu-ratelimit.ratelimit.sourcecriterion.requestheadername: "Cf-Connecting-Ip"
+    deploy:
+      resources:
+        limits:
+          memory: 128M
+          cpus: '0.5'
+    logging:
+      driver: json-file
+      options:
+        max-size: "25m"
+        max-file: "3"
+
+volumes:
+  niu-data:
+    name: niu-data
+
+networks:
+  # Shared L7 fabric owned by platform-services — joined for Traefik
+  # routing AND to reach otel-collector (which also sits on this
+  # network, see platform-services/compose.yaml).
+  traefik-public:
+    name: traefik-public
+    external: true

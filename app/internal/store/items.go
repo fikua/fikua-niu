@@ -224,12 +224,37 @@ func (r *ItemsRepository) List(ctx context.Context) ([]items.Item, error) {
 // concurrent move to the same box computes the same position, and both
 // rows land on top of each other. The parameter is kept so the Repository
 // interface stays stable for callers that do not care.
+// Note the transaction is opened with BEGIN IMMEDIATE rather than
+// database/sql's BeginTx. SQLite's default is a *deferred* transaction:
+// it takes no lock until the first statement, so a read-then-write
+// transaction starts as a reader and tries to upgrade to a writer at the
+// UPDATE. If another writer got there first, the upgrade cannot wait —
+// SQLite returns SQLITE_BUSY immediately, because backing off would risk
+// deadlock. busy_timeout does not help, precisely because there is
+// nothing safe to wait for.
+//
+// BEGIN IMMEDIATE takes the write lock up front, so a concurrent mover
+// blocks on acquisition and busy_timeout(5000) applies normally. Without
+// this, two people moving items at the same moment produced a 500 —
+// which is exactly what AC-09 forbids.
 func (r *ItemsRepository) Update(ctx context.Context, id, userID int64, newLocation items.Location, _ float64) (items.Item, error) {
-	tx, err := r.db.BeginTx(ctx, nil)
+	conn, err := r.db.Conn(ctx)
 	if err != nil {
-		return items.Item{}, fmt.Errorf("store: begin move tx: %w", err)
+		return items.Item{}, fmt.Errorf("store: acquire conn: %w", err)
 	}
-	defer tx.Rollback() //nolint:errcheck // no-op once Commit succeeded
+	defer conn.Close() //nolint:errcheck // returning to the pool
+
+	if _, err := conn.ExecContext(ctx, `BEGIN IMMEDIATE`); err != nil {
+		return items.Item{}, fmt.Errorf("store: begin immediate: %w", err)
+	}
+	committed := false
+	defer func() {
+		if !committed {
+			_, _ = conn.ExecContext(context.WithoutCancel(ctx), `ROLLBACK`)
+		}
+	}()
+
+	tx := conn
 
 	// COALESCE covers the empty-destination case: first item lands at 1.0.
 	var nextPosition float64
@@ -258,9 +283,10 @@ func (r *ItemsRepository) Update(ctx context.Context, id, userID int64, newLocat
 		return items.Item{}, items.ErrNotFound{ID: id}
 	}
 
-	if err := tx.Commit(); err != nil {
+	if _, err := tx.ExecContext(ctx, `COMMIT`); err != nil {
 		return items.Item{}, fmt.Errorf("store: commit move: %w", err)
 	}
+	committed = true
 	return r.Get(ctx, id)
 }
 

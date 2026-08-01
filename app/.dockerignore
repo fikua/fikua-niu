@@ -1,0 +1,18 @@
+# Keep the build context small — none of this is needed to build the
+# static Go binary, and some of it (node_modules, .env) must never reach
+# the Docker daemon / an image layer.
+.env
+*.local.yml
+
+tests/e2e/node_modules/
+tests/e2e/test-results/
+tests/e2e/playwright-report/
+tests/e2e/.cache/
+tests/e2e/.last-run.json
+
+*.db
+*.db-wal
+*.db-shm
+
+.git/
+.DS_Store

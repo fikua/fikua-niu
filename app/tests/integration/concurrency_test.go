@@ -125,6 +125,54 @@ func TestTwoUsers_ConcurrentMove_NoErrorConverges(t *testing.T) {
 	}
 }
 
+// TestTwoUsers_ConcurrentMove_Repeated is the same race run many times.
+//
+// A single-shot concurrency test is close to useless: the two goroutines
+// often do not actually overlap, so the test passes without ever
+// exercising the contention it claims to cover. This one failed 5 runs
+// out of 5 when a deferred SQLite transaction made the second writer
+// return 500 (SQLITE_BUSY on lock upgrade) — a defect a single run could
+// easily have missed.
+func TestTwoUsers_ConcurrentMove_Repeated(t *testing.T) {
+	const rounds = 25
+
+	for round := 0; round < rounds; round++ {
+		srv := newTwoUserServers(t)
+		created := createItem(t, srv.A, "Cursa")
+
+		var wg sync.WaitGroup
+		statuses := make([]int, 2)
+		wg.Add(2)
+		go func() {
+			defer wg.Done()
+			res := doJSON(t, http.MethodPatch, srv.A.URL+"/api/v1/items/"+idStr(created.ID), map[string]string{"location": "pantry"})
+			statuses[0] = res.StatusCode
+		}()
+		go func() {
+			defer wg.Done()
+			res := doJSON(t, http.MethodPatch, srv.B.URL+"/api/v1/items/"+idStr(created.ID), map[string]string{"location": "shopping"})
+			statuses[1] = res.StatusCode
+		}()
+		wg.Wait()
+
+		for i, status := range statuses {
+			if status >= 500 {
+				t.Fatalf("round %d: concurrent PATCH #%d returned %d — AC-09 requires that neither request fails",
+					round, i, status)
+			}
+		}
+
+		listA := listItems(t, srv.A)
+		listB := listItemsFrom(t, srv.B)
+		if len(listA) != 1 || len(listB) != 1 {
+			t.Fatalf("round %d: expected one item on both sides, got A=%d B=%d", round, len(listA), len(listB))
+		}
+		if listA[0].Location != listB[0].Location {
+			t.Fatalf("round %d: clients diverge: A=%q B=%q", round, listA[0].Location, listB[0].Location)
+		}
+	}
+}
+
 // CF-13 — item added by A, moved by B: response identifies A as creator
 // and B as the last mover.
 func TestTwoUsers_AuthorshipAttribution(t *testing.T) {
