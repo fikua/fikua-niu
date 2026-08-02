@@ -4,7 +4,7 @@
 # CGO_ENABLED=0 produces a fully static binary. That is what makes a
 # distroless/scratch runtime image possible at all.
 
-FROM golang:1.25-alpine AS build
+FROM golang:1.26-alpine AS build
 
 WORKDIR /src
 
