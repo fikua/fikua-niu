@@ -1,12 +1,24 @@
 // Package config parses process configuration from the environment with
 // fail-fast validation (PLAN.md §6). Starting NIU-4, NIU_SESSION_SECRET and
-// the NIU_USER_*_HASH/NAME/DISPLAY variables are mandatory (real
-// authentication, design.md §2 point 9) — the process refuses to start in
-// any partially-configured state.
+// the NIU_USER_*_HASH variables are mandatory (real authentication,
+// design.md §2 point 9) — the process refuses to start in any
+// partially-configured state.
+//
+// Non-secret identity fields (username, display name, avatar emoji) are
+// NOT read from the environment — they come from the committed
+// users.json (see UsersFromEmbed / niu.UsersConfigFS). Forcing
+// non-sensitive values through the same manual .env editing process as
+// real secrets was the direct cause of repeated deploy friction
+// (2026-08-02): a forgotten NIU_USER_A_AVATAR silently fell back to a
+// default, and fixing a display-name typo required SSHing into the VPS.
+// Only NIU_SESSION_SECRET and the two bcrypt hashes carry real security
+// value and stay host-only.
 package config
 
 import (
+	"encoding/json"
 	"fmt"
+	"io/fs"
 	"os"
 )
 
@@ -15,6 +27,14 @@ import (
 // enough to make the HMAC-derived CSRF token (ADR-05) and any future use of
 // the secret computationally sound.
 const minSessionSecretBytes = 32
+
+// UserIdentity holds the non-secret fields for one seeded user, sourced
+// from the committed users.json rather than the environment.
+type UserIdentity struct {
+	Name        string `json:"name"`
+	DisplayName string `json:"display_name"`
+	AvatarEmoji string `json:"avatar_emoji"`
+}
 
 // Config holds the process-wide configuration resolved once at startup.
 type Config struct {
@@ -27,19 +47,19 @@ type Config struct {
 
 	// SessionSecret is the HMAC key used to derive the CSRF token from a
 	// session's token_hash (ADR-05). Must be at least minSessionSecretBytes.
+	// The only genuinely secret value here alongside the two hashes below.
 	SessionSecret string
-	// UserAName/UserADisplay/UserAHash and UserBName/UserBDisplay/UserBHash
-	// seed the two households' credentials at startup via an idempotent
-	// UPDATE (design.md §6.2, T-19) — never committed to the repository
-	// (S11/NFR-09).
-	UserAName    string
-	UserADisplay string
-	UserAHash    string
-	UserAAvatar  string
-	UserBName    string
-	UserBDisplay string
-	UserBHash    string
-	UserBAvatar  string
+
+	// UserA/UserB carry the non-secret identity (name, display name,
+	// avatar) loaded from users.json — see LoadUsers.
+	UserA UserIdentity
+	UserB UserIdentity
+
+	// UserAHash/UserBHash are bcrypt password hashes (S11/NFR-09) — never
+	// committed to the repository, seeded at startup via an idempotent
+	// UPDATE (design.md §6.2, T-19).
+	UserAHash string
+	UserBHash string
 }
 
 const (
@@ -48,24 +68,52 @@ const (
 	defaultEnv    = "production"
 )
 
-// Load reads configuration from the environment and validates it,
-// following PLAN.md §6. It never panics; callers should treat a non-nil
-// error as fatal and refuse to start the process.
-func Load() (Config, error) {
+// usersJSON is the shape of the committed users.json file.
+type usersJSON struct {
+	UserA UserIdentity `json:"user_a"`
+	UserB UserIdentity `json:"user_b"`
+}
+
+// LoadUsers reads the non-secret user identity fields from the embedded
+// users.json. Kept separate from Load so callers that only need identity
+// (e.g. a future admin tool) don't have to satisfy the secret-bearing
+// environment requirements too.
+func LoadUsers(usersFS fs.FS) (UserIdentity, UserIdentity, error) {
+	data, err := fs.ReadFile(usersFS, "users.json")
+	if err != nil {
+		return UserIdentity{}, UserIdentity{}, fmt.Errorf("config: read users.json: %w", err)
+	}
+	var parsed usersJSON
+	if err := json.Unmarshal(data, &parsed); err != nil {
+		return UserIdentity{}, UserIdentity{}, fmt.Errorf("config: parse users.json: %w", err)
+	}
+	for label, u := range map[string]UserIdentity{"user_a": parsed.UserA, "user_b": parsed.UserB} {
+		if u.Name == "" || u.DisplayName == "" || u.AvatarEmoji == "" {
+			return UserIdentity{}, UserIdentity{}, fmt.Errorf("config: users.json %q is missing a required field", label)
+		}
+	}
+	return parsed.UserA, parsed.UserB, nil
+}
+
+// Load reads configuration from the environment and users.json, and
+// validates it, following PLAN.md §6. It never panics; callers should
+// treat a non-nil error as fatal and refuse to start the process.
+func Load(usersFS fs.FS) (Config, error) {
+	userA, userB, err := LoadUsers(usersFS)
+	if err != nil {
+		return Config{}, err
+	}
+
 	cfg := Config{
 		Port:   getEnvOrDefault("NIU_PORT", defaultPort),
 		DBPath: getEnvOrDefault("NIU_DB_PATH", defaultDBPath),
 		Env:    getEnvOrDefault("NIU_ENV", defaultEnv),
 
 		SessionSecret: os.Getenv("NIU_SESSION_SECRET"),
-		UserAName:     os.Getenv("NIU_USER_A_NAME"),
-		UserADisplay:  os.Getenv("NIU_USER_A_DISPLAY"),
+		UserA:         userA,
 		UserAHash:     os.Getenv("NIU_USER_A_HASH"),
-		UserAAvatar:   getEnvOrDefault("NIU_USER_A_AVATAR", "🐦"),
-		UserBName:     os.Getenv("NIU_USER_B_NAME"),
-		UserBDisplay:  os.Getenv("NIU_USER_B_DISPLAY"),
+		UserB:         userB,
 		UserBHash:     os.Getenv("NIU_USER_B_HASH"),
-		UserBAvatar:   getEnvOrDefault("NIU_USER_B_AVATAR", "🦊"),
 	}
 
 	if cfg.Port == "" {
@@ -75,23 +123,15 @@ func Load() (Config, error) {
 		return Config{}, fmt.Errorf("config: NIU_DB_PATH must not be empty")
 	}
 
-	// EC-12/AC-13: the six credential fields and the session secret are
-	// mandatory — no partial-start state. Checked individually (not just
-	// "all empty") so the error message is actionable.
+	// EC-12/AC-13: the session secret and the two hashes are mandatory —
+	// no partial-start state. Checked individually (not just "all empty")
+	// so the error message is actionable.
 	required := map[string]string{
 		"NIU_SESSION_SECRET": cfg.SessionSecret,
-		"NIU_USER_A_NAME":    cfg.UserAName,
-		"NIU_USER_A_DISPLAY": cfg.UserADisplay,
 		"NIU_USER_A_HASH":    cfg.UserAHash,
-		"NIU_USER_B_NAME":    cfg.UserBName,
-		"NIU_USER_B_DISPLAY": cfg.UserBDisplay,
 		"NIU_USER_B_HASH":    cfg.UserBHash,
 	}
-	for _, key := range []string{
-		"NIU_SESSION_SECRET",
-		"NIU_USER_A_NAME", "NIU_USER_A_DISPLAY", "NIU_USER_A_HASH",
-		"NIU_USER_B_NAME", "NIU_USER_B_DISPLAY", "NIU_USER_B_HASH",
-	} {
+	for _, key := range []string{"NIU_SESSION_SECRET", "NIU_USER_A_HASH", "NIU_USER_B_HASH"} {
 		if required[key] == "" {
 			return Config{}, fmt.Errorf("config: %s must be set", key)
 		}

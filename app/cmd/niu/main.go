@@ -38,7 +38,7 @@ func main() {
 }
 
 func run() error {
-	cfg, err := config.Load()
+	cfg, err := config.Load(niu.UsersConfigFS)
 	if err != nil {
 		return err
 	}
@@ -117,8 +117,8 @@ func seedCredentials(db *sql.DB, cfg config.Config) error {
 		id                          int64
 		name, display, hash, avatar string
 	}{
-		{1, auth.NormalizeUsername(cfg.UserAName), cfg.UserADisplay, cfg.UserAHash, cfg.UserAAvatar},
-		{2, auth.NormalizeUsername(cfg.UserBName), cfg.UserBDisplay, cfg.UserBHash, cfg.UserBAvatar},
+		{1, auth.NormalizeUsername(cfg.UserA.Name), cfg.UserA.DisplayName, cfg.UserAHash, cfg.UserA.AvatarEmoji},
+		{2, auth.NormalizeUsername(cfg.UserB.Name), cfg.UserB.DisplayName, cfg.UserBHash, cfg.UserB.AvatarEmoji},
 	}
 
 	for _, seed := range seeds {

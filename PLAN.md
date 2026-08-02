@@ -498,10 +498,34 @@ required config rather than failing at first request.
 | `NIU_PORT` | no (8080) | |
 | `NIU_DB_PATH` | no (`/data/niu.db`) | |
 | `NIU_SESSION_SECRET` | **yes** (NIU-4) | ≥32 bytes; refuse to start if short |
-| `NIU_USER_A_NAME` / `NIU_USER_A_DISPLAY` / `NIU_USER_A_HASH` | yes (NIU-4) | bcrypt hash, never plaintext |
-| `NIU_USER_B_*` | yes (NIU-4) | |
+| `NIU_USER_A_HASH` / `NIU_USER_B_HASH` | yes (NIU-4) | bcrypt hash, never plaintext. Every literal `$` must be escaped `$$` in the `.env` file (Compose interpolation trap — see §6.1) |
 | `NIU_ENV` | no (`production`) | `development` relaxes `Secure` cookie for localhost |
 | `OTEL_*` | no | Absent → tracing disabled, app still runs |
+
+**Resolved 2026-08-02: username, display name and avatar are NOT
+environment variables.** They live in the app repo's committed
+`app/users.json` (`{"user_a": {"name", "display_name", "avatar_emoji"},
+"user_b": {...}}`) — non-secret, versioned, editable in a normal PR like
+any other code. Only `NIU_SESSION_SECRET` and the two bcrypt hashes carry
+real security value and stay in the host-only `.env`. Routing every
+config value through the same manual `.env`-on-the-VPS process as real
+secrets was the direct cause of repeated deploy friction on first
+deploy: a forgotten avatar var silently fell back to a default, and a
+display-name typo required SSHing into the VPS instead of a `git commit`.
+
+### 6.1 The `$` escaping trap (bcrypt hashes in `.env`)
+
+Hit in production on 2026-08-02. A bcrypt hash contains literal `$`
+characters (`$2a$12$...`), and Docker Compose reads `$` in a `.env` file
+as the start of a variable reference — an unescaped `$` silently drops
+whatever follows it, corrupting the hash. `NIU_USER_A_HASH` lost the
+segment right after its first `$`, breaking that user's login with no
+clear error until the `.env` was rewritten with every `$` doubled to
+`$$`. `docker compose config` is not the right tool to verify this — it
+deliberately still prints the escaped `$$` form and looks "wrong" even
+when correct. Verify against what Docker actually injected:
+`docker inspect niu --format '{{range .Config.Env}}{{println .}}{{end}}' | grep NIU_USER_A_HASH`
+must show a single `$`.
 
 Secrets live in a gitignored `.env` on the host next to the compose file,
 with a committed `.env.example` showing shape only. This is the
