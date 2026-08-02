@@ -555,3 +555,24 @@ header.app-header .wordmark {
 }
 .login-form .add-input-group { margin-top: 0; }
 .login-submit { width: 100%; text-align: center; }
+
+/* ================= Footer branding ================= */
+
+.app-footer {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-xs);
+  margin-top: var(--space-2xl);
+  padding: var(--space-md) 0;
+  color: var(--color-text-secondary);
+  font-size: var(--type-caption-size);
+  line-height: var(--type-caption-line);
+}
+.footer-mark {
+  display: inline-block;
+  vertical-align: middle;
+  /* The favicon's strokes are dark/colourful on a transparent background;
+     it reads fine at 14px against the app's cream background without any
+     filter — no need to force it to match --color-text-secondary. */
+}
