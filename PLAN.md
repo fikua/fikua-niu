@@ -40,14 +40,13 @@ Recorded so no agent re-opens a settled question:
 | Frontend hosting | Served by the Go binary via `embed.FS` | Cloudflare Pages/Workers | Same-origin kills CSRF structurally; `SameSite=None` would have been a permanent security cost for zero gain. See §2.1 |
 | Repo layout | Single standalone repo, code in `app/` | Separate front/back repos | One deployable unit, one pipeline, no version skew |
 | Auth mechanism | Opaque session token, hash stored in DB | JWT | JWTs cannot be revoked without a blacklist — which is exactly the `sessions` table. Opaque token is both simpler and a better path to mobile (§9) |
-| Execution order | ~~List → Deploy → OTEL → Auth~~ **List → Auth → Deploy → OTEL** | Auth first (original) | Original order chosen for early visible value, stopgapped with Cloudflare Access. **Superseded 2026-08-02** — see the two rows below and §8 |
+| Execution order | **List → Auth → Deploy → OTEL** | List → Deploy → OTEL → Auth | Deploying behind Cloudflare Access as a stopgap would have required inventing a deployment pattern with no precedent on the platform (a proxied A record with Access in front — every existing Access app fronts a Tunnel instead). Shipping auth before the first public deploy removes the exposure problem instead of working around it, and keeps the deployment itself on the well-trodden `exam-room` pattern. Resolved 2026-08-02 |
 | API prefix | `/api/v1/` from day one | `/api/` | Costs nothing today, avoids a painful dual-URL period if a mobile app ever ships (§9) |
 | Duplicate items | **Blocked** (trimmed, case-insensitive, across both boxes) | Allow / warn-but-allow | Human chose a clean list over quantity-in-list. Resolved 2026-08-01 |
 | Sync between users | **Polling ~10s + refetch on focus** | SSE | Two people; polling is indistinguishable from real time and has far fewer moving parts. Resolved 2026-08-01 |
 | Quantity | **No field** — written inside the name (`"2 llets"`) | Numeric column + ± UI | Avoids a column, a migration, UI and test cases for something a string already solves. Resolved 2026-08-01 |
 | User identity in docs | **Generic** (`Usuari A` / `Usuari B`) | Real names | **The repo is public.** Real names and avatars are injected via env at deploy time. Resolved 2026-08-01 |
-| Auth mechanism (NIU-4) | **Google OAuth only, email allowlist** | Username/password (bcrypt) · Both, user's choice | Delegating auth to Google removes S4 (brute force), S5 (user enumeration) and S6 (session fixation) as *code the app must get right* — Google already solves them. For two users, "both options" would double the auth surface for no benefit. Resolved 2026-08-02 |
-| Public exposure strategy | **Ship NIU-4 before any public deploy** | Deploy behind Cloudflare Access as a stopgap, add real auth later | Access-as-stopgap required inventing a deployment pattern with no precedent on the platform (proxied A record + Access; every existing Access app fronts a Tunnel). Real auth removes the exposure problem at its root instead of working around it. Resolved 2026-08-02 — reorders the backlog: NIU-4 now ships before NIU-2's public deploy |
+| Auth mechanism (NIU-4) | **Username/password (bcrypt)** — reverted to the original design | Google OAuth + email allowlist | Google OAuth was tried on 2026-08-02, required a GCP project + OAuth consent screen setup before any progress was possible, and was reverted the same day: the owner wants the app deployed and iterated on, not blocked on an external console. Bcrypt + the existing `sessions`/`password_hash` schema needs no external dependency |
 
 ---
 
@@ -271,26 +270,18 @@ in §7.2.
 | S1 | CSRF | Same-origin + `SameSite=Strict`. **Plus** double-submit token on all mutations as defence in depth. No `GET` mutations | NIU-4 (token), NIU-1 (no GET mutations) |
 | S2 | Session hijacking | Cookie `HttpOnly; Secure; Path=/; SameSite=Strict`. Token = 256 bits from `crypto/rand`. **DB stores SHA-256 of the token, never the token** | NIU-4 |
 | S3 | XSS | CSP with no `unsafe-inline` (all JS in files). **Zero `innerHTML` with user data — `textContent` only** | NIU-1 |
-| ~~S4~~ | ~~Brute force~~ | **Removed 2026-08-02.** Google OAuth is the only login path — there is no password to brute-force. Google's own account security (2FA, anomaly detection) applies | — |
-| S5 | Identity verification | The ID token's `email` claim MUST be checked against the allowlist (`NIU_ALLOWED_EMAILS`) **and** its issuer/audience/signature verified via Google's OIDC discovery document — never trust a client-supplied email. Reject anyone not on the list with a generic "not authorised" page, no detail about why | NIU-4 |
-| ~~S6~~ | ~~Session fixation~~ | **Unchanged in substance** — still applies to Niu's own session cookie issued after a successful Google login, renumbered nowhere else. New token on every login; invalidate on logout; expire server-side | NIU-4 |
+| S4 | Brute force | bcrypt cost 12 + rate limit per IP and per username with backoff | NIU-4 |
+| S5 | User enumeration | Identical error message and constant-ish response time for unknown user vs wrong password | NIU-4 |
+| S6 | Session fixation | New token on every login; invalidate on logout; expire server-side | NIU-4 |
 | S7 | Missing headers | `HSTS`, `X-Content-Type-Options: nosniff`, `X-Frame-Options: DENY`, `Referrer-Policy: no-referrer`, CSP | NIU-1 |
 | S8 | SQL injection | Prepared statements only. **Zero string concatenation into SQL** | NIU-1 |
-| S9 | Secrets in image/repo | OAuth client secret and `NIU_SESSION_SECRET` injected via env at runtime. Nothing secret in the image or git | NIU-2, NIU-4 |
-| ~~S10~~ | ~~Unauthenticated exposure window~~ | **Removed 2026-08-02.** NIU-4 now ships *before* the first public deploy (backlog reorder, §8) — there is no window to cover with a stopgap. Cloudflare Access is no longer part of the deployment plan | — |
+| S9 | Secrets in image/repo | Password hashes and `NIU_SESSION_SECRET` injected via env at runtime. Nothing secret in the image or git | NIU-2, NIU-4 |
 
-**Why S4/S6(brute-force)/S10 disappear rather than move.** They existed
-to cover a self-hosted username/password scheme and a temporary exposure
-window created by shipping auth last. Both premises are gone: Google
-handles credential security, and the backlog now ships auth before any
-public traffic reaches the app. Removing the row is more honest than
-marking it "done elsewhere" — there is nothing left to do.
-
-**S5 is now the one that could actually bite.** A misconfigured OAuth
-client (wrong `redirect_uri`, missing token verification) is the
-realistic failure mode, not a guessed password. `security-engineer` MUST
-verify the ID token is cryptographically validated, not merely decoded
-and trusted.
+**S10 (Cloudflare Access as an unauthenticated-exposure stopgap) is
+deliberately not in this table.** With auth shipping before the first
+public deploy (§8), there is no exposure window to cover — the deploy
+step now reuses the plain `exam-room` pattern (proxied A record →
+Traefik `websecure`), no Access, no new pattern to verify.
 
 **Input validation (NIU-1):** item name trimmed, 1–200 chars after trim,
 reject empty/whitespace-only, allow Unicode (accents, emoji, apostrophes
@@ -507,10 +498,8 @@ required config rather than failing at first request.
 | `NIU_PORT` | no (8080) | |
 | `NIU_DB_PATH` | no (`/data/niu.db`) | |
 | `NIU_SESSION_SECRET` | **yes** (NIU-4) | ≥32 bytes; refuse to start if short |
-| `NIU_GOOGLE_CLIENT_ID` | **yes** (NIU-4) | OAuth 2.0 client ID from Google Cloud Console |
-| `NIU_GOOGLE_CLIENT_SECRET` | **yes** (NIU-4) | never logged, never in any response |
-| `NIU_ALLOWED_EMAILS` | **yes** (NIU-4) | comma-separated allowlist; refuse to start if empty — an app with no allowed emails is a bug, not a valid state |
-| `NIU_USER_A_DISPLAY` / `NIU_USER_B_DISPLAY` | yes (NIU-4) | display name + avatar shown in the UI, keyed by the verified Google email — no password material anywhere |
+| `NIU_USER_A_NAME` / `NIU_USER_A_DISPLAY` / `NIU_USER_A_HASH` | yes (NIU-4) | bcrypt hash, never plaintext |
+| `NIU_USER_B_*` | yes (NIU-4) | |
 | `NIU_ENV` | no (`production`) | `development` relaxes `Secure` cookie for localhost |
 | `OTEL_*` | no | Absent → tracing disabled, app still runs |
 
@@ -585,17 +574,16 @@ Rules:
 | S2 | DB inspection: `sessions` contains no value equal to a live token |
 | S3 | Item named `<img src=x onerror=alert(1)>` renders as literal text; asserted in a real browser |
 | S3 | Response carries a CSP with no `unsafe-inline` |
-| S5 | Unverified/forged ID token (bad signature, wrong audience) → rejected before the email is even read (NIU-4) |
-| S5 | Valid Google login with an email not on `NIU_ALLOWED_EMAILS` → generic "not authorised", no session issued (NIU-4) |
+| S4 | 10 failed logins → rate limited (NIU-4) |
+| S5 | Unknown user and wrong password → byte-identical error body (NIU-4) |
 | S6 | Token before login ≠ token after; logout invalidates server-side (NIU-4) |
 | S7 | HSTS, nosniff, X-Frame-Options, Referrer-Policy all present |
 | S8 | Item named `'; DROP TABLE items;--` is stored literally; table survives |
-| S9 | `docker history` / image scan shows no secret (including the OAuth client secret); repo has no `.env` |
+| S9 | `docker history` / image scan shows no secret; repo has no `.env` |
 | S11 | Repo scan finds no real names, emails or personal data in any committed file |
 
-> S4 and S10 have no test — both rows were removed from §3, not merely
-> marked done. There is no password to brute-force, and no exposure
-> window to verify closed.
+> S10 has no test — deploying before auth was the alternative that would
+> have needed it, and §8 no longer does that.
 
 **Performance**
 - p95 `GET /api/v1/items` < 200ms with 500 items.
@@ -629,15 +617,22 @@ Access. That stopgap required inventing a deployment pattern with no
 precedent on the platform (a proxied A record with Access in front —
 every existing Access app fronts a Tunnel instead). Shipping real auth
 before the first public deploy removes the exposure problem at its root
-instead of working around it, and Google OAuth (§3, decision log) makes
-NIU-4 small enough that reordering costs little.
+instead of working around it, and reuses the plain `exam-room` pattern
+for the deploy itself.
+
+> A same-day detour tried Google OAuth for NIU-4 instead of
+> username/password, on the reasoning that it would shrink the security
+> surface further. Reverted the same day: it introduced an external
+> dependency (a Google Cloud Console project + OAuth consent screen) that
+> blocked progress before any code could be written, which cuts directly
+> against the goal of shipping and iterating. Back to bcrypt.
 
 **Current order: list → auth → deploy (public) → OTEL.**
 
 | Key | Type | Title | Depends on |
 |---|---|---|---|
 | `NIU-1` | story | Shopping list ↔ pantry with stubbed auth | — (done) |
-| `NIU-4` | story | Google OAuth login, email allowlist | NIU-1 |
+| `NIU-4` | story | Username/password login for two users | NIU-1 |
 | `NIU-2` | task | Deployment: Docker, compose, CI/CD, DNS, SQLite backup | NIU-4 |
 | `NIU-3` | task | OTEL instrumentation → OpenObserve | NIU-2 |
 
@@ -657,27 +652,18 @@ green, audit findings resolved.
 
 ### NIU-4 — Authentication (story)
 
-Scope: "Sign in with Google" button matching the warm design (§4), OAuth
-2.0 / OpenID Connect authorization-code flow, ID token verification
-against Google's OIDC discovery document (issuer, audience, signature —
-never trust a client-supplied claim), email checked against
-`NIU_ALLOWED_EMAILS`, Niu's own session cookie issued after a successful
-verified login (`HttpOnly; Secure; Path=/; SameSite=Strict`, opaque
-token, SHA-256 at rest — unchanged from the original design), logout,
-session expiry and cleanup.
+Scope: login page matching the warm design, `POST /auth/login|logout`,
+opaque tokens with SHA-256-at-rest, `SameSite=Strict` cookie,
+double-submit CSRF token, bcrypt cost 12, rate limiting, constant-time
+comparison, session expiry and cleanup, seeding from env
+(`NIU_USER_A_HASH`, `NIU_USER_B_HASH`).
 
-**Explicitly removed from scope** (§3 decision log): password storage,
-bcrypt, brute-force rate limiting, password-reset flow — there is no
-password. `users.password_hash` (migration 1) becomes dead and should be
-dropped in this item's migration, not left as an unused column.
-
-Replaces `auth.StubAuthenticator` (ADR-03) with a `GoogleAuthenticator`
+Replaces `auth.StubAuthenticator` (ADR-03) with a `PasswordAuthenticator`
 behind the same `Authenticator` interface — `items_handlers.go` should
 need zero changes.
 
-Done when: every remaining §7.2 security test passes (S1, S2, S5, S7,
-S8), an unauthorised email is rejected with a generic message, and a
-person on the allowlist can complete the full login → use → logout cycle.
+Done when: every §7.2 security test passes (S1–S9), and a person with the
+right credentials can complete the full login → use → logout cycle.
 
 ### NIU-2 — Deployment (task)
 
@@ -686,18 +672,17 @@ Scope: Dockerfile (multi-stage, distroless, non-root, static binary),
 record via OpenTofu, `backup-db.sh` SQLite support + prune fix, and a
 documented restore test.
 
-**Cloudflare Access is no longer part of this item.** With NIU-4 shipped
-first, the app requires a verified Google login before any mutation is
-possible — a direct proxied A record to Traefik's `websecure` entrypoint
-is the same pattern `exam-room` already uses on this platform, no new
-pattern required.
+**Cloudflare Access is not part of this item.** With NIU-4 shipped first,
+the app requires a login before any mutation is possible — a direct
+proxied A record to Traefik's `websecure` entrypoint is the same pattern
+`exam-room` already uses on this platform, no new pattern required.
 
 Needs `platform-engineer`. Touches the `fikua-platform-iac` repo — a
 **separate PR in a separate repo**, coordinated with this one.
 
-Done when: `https://niu.fikua.com` serves the app, only allowlisted
-Google accounts can use it, a release triggers a deploy, a backup exists
-in object storage and has been restored once.
+Done when: `https://niu.fikua.com` serves the app, login is required to
+use it, a release triggers a deploy, a backup exists in object storage
+and has been restored once.
 
 > **Migration note for the in-flight PR.** `fikua-platform-iac` PR #15
 > was written against the old plan (DNS committed commented out, gated on
