@@ -2,7 +2,7 @@
 artefact: requirements
 key: "NIU-4"
 title: "Autenticació amb usuari i contrasenya"
-status: "draft"
+status: "approved"
 owner: "product-manager + qa-engineer"
 proposal_path: "./proposal.md"
 ac_count: 14

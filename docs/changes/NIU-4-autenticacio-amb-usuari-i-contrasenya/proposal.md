@@ -3,7 +3,7 @@ artefact: proposal
 key: "NIU-4"
 type: "story"
 title: "Autenticació amb usuari i contrasenya"
-status: "draft"
+status: "approved"
 owner: "product-manager"
 parent_key: null
 related_keys: ["NIU-1"]
