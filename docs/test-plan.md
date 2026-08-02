@@ -28,8 +28,8 @@
 
 | Símbol | Significat |
 |---|---|
-| 🟢 NIU-1 | En abast ara; test ha d'existir i passar abans de tancar NIU-1 |
-| ⚪ NIU-2/3/4 | Descrit aquí per traçabilitat de projecte; el test **no existeix encara** — es construirà quan s'aborda aquell ítem |
+| 🟢 NIU-1 / 🟢 NIU-4 | En abast ara (NIU-4 en `/define`); test ha d'existir i passar abans de tancar l'ítem |
+| ⚪ NIU-2/3 | Descrit aquí per traçabilitat de projecte; el test **no existeix encara** — es construirà quan s'aborda aquell ítem |
 
 ---
 
@@ -238,20 +238,83 @@ n'hi ha prou que la mitigació existeixi en el codi.
 | ID | Cas | Donat / Quan / Llavors | Estat |
 |---|---|---|---|
 | S1a | Cap mutació via `GET` | **Donat** la taula de rutes de l'API — **Quan** s'inspeccionen totes les rutes `GET` — **Llavors** cap d'elles produeix un efecte d'escriptura (crear/moure/eliminar) | 🟢 NIU-1 |
-| S1b | Token CSRF de doble-submit rebutja mutacions sense token | **Donat** una sessió autenticada — **Quan** s'envia `POST/PATCH/DELETE` sense el token CSRF esperat — **Llavors** la petició es rebutja amb 403 | ⚪ NIU-4 |
-| S2a | Petició sense cookie és rebutjada | **Donat** cap cookie de sessió — **Quan** es crida un endpoint protegit — **Llavors** respon 401 | ⚪ NIU-4 |
-| S2b | Cookie alterada és rebutjada | **Donat** una cookie de sessió amb el valor manipulat — **Quan** es crida un endpoint protegit — **Llavors** respon 401 | ⚪ NIU-4 |
-| S2c | La base de dades mai conté el token en clar | **Donat** una sessió activa amb token conegut pel test — **Quan** s'inspecciona la taula `sessions` — **Llavors** cap valor emmagatzemat coincideix amb el token en clar (només el seu hash) | ⚪ NIU-4 |
+| S1b | Token CSRF de doble-submit rebutja mutacions sense token | **Donat** una sessió autenticada — **Quan** s'envia `POST/PATCH/DELETE` sense el token CSRF esperat — **Llavors** la petició es rebutja amb 403 | 🟢 NIU-4 |
+| S2a | Petició sense cookie és rebutjada | **Donat** cap cookie de sessió — **Quan** es crida un endpoint protegit — **Llavors** respon 401 | 🟢 NIU-4 |
+| S2b | Cookie alterada és rebutjada | **Donat** una cookie de sessió amb el valor manipulat — **Quan** es crida un endpoint protegit — **Llavors** respon 401 | 🟢 NIU-4 |
+| S2c | La base de dades mai conté el token en clar | **Donat** una sessió activa amb token conegut pel test — **Quan** s'inspecciona la taula `sessions` — **Llavors** cap valor emmagatzemat coincideix amb el token en clar (només el seu hash) | 🟢 NIU-4 |
 | S3a | XSS en nom d'ítem es renderitza com a text literal | **Donat** un ítem amb nom `<img src=x onerror=alert(1)>` — **Quan** es renderitza en un navegador real — **Llavors** no s'executa cap script i el text apareix literalment | 🟢 NIU-1 |
 | S3b | CSP sense `unsafe-inline` | **Donat** qualsevol resposta HTML — **Quan** s'inspecciona la capçalera `Content-Security-Policy` — **Llavors** no conté `unsafe-inline` | 🟢 NIU-1 |
-| S4 | 10 intents de login fallits activen limitació | **Donat** un usuari desconegut o contrasenya incorrecta — **Quan** es fan 10 intents consecutius — **Llavors** l'intent següent es rebutja per límit de freqüència | ⚪ NIU-4 |
-| S5 | Usuari inexistent i contrasenya incorrecta donen error idèntic | **Donat** un nom d'usuari que no existeix i un altre que existeix amb contrasenya incorrecta — **Quan** s'intenta iniciar sessió amb cadascun — **Llavors** el cos de la resposta d'error és byte a byte idèntic en tots dos casos | ⚪ NIU-4 |
-| S6 | Token canvia en cada login; logout l'invalida | **Donat** un usuari que inicia sessió dues vegades — **Quan** es comparen els tokens emesos — **Llavors** són diferents; **Quan** es fa logout i es reutilitza el token antic — **Llavors** es rebutja | ⚪ NIU-4 |
+| S4 | 10 intents de login fallits activen limitació | **Donat** un usuari desconegut o contrasenya incorrecta — **Quan** es fan 10 intents consecutius — **Llavors** l'intent següent es rebutja per límit de freqüència | 🟢 NIU-4 |
+| S5 | Usuari inexistent i contrasenya incorrecta donen error idèntic | **Donat** un nom d'usuari que no existeix i un altre que existeix amb contrasenya incorrecta — **Quan** s'intenta iniciar sessió amb cadascun — **Llavors** el cos de la resposta d'error és byte a byte idèntic en tots dos casos | 🟢 NIU-4 |
+| S6 | Token canvia en cada login; logout l'invalida | **Donat** un usuari que inicia sessió dues vegades — **Quan** es comparen els tokens emesos — **Llavors** són diferents; **Quan** es fa logout i es reutilitza el token antic — **Llavors** es rebutja | 🟢 NIU-4 |
 | S7 | Capçaleres de seguretat presents a totes les respostes | **Donat** qualsevol resposta de l'API o de fitxers estàtics — **Quan** s'inspeccionen les capçaleres — **Llavors** hi són totes: `Strict-Transport-Security`, `X-Content-Type-Options: nosniff`, `X-Frame-Options: DENY`, `Referrer-Policy: no-referrer`, `Content-Security-Policy` | 🟢 NIU-1 |
 | S8 | Injecció SQL al nom d'ítem no afecta la base de dades | **Donat** un nom d'ítem `'; DROP TABLE items;--` — **Quan** es crea l'ítem i després es consulta l'estat de la taula `items` — **Llavors** el nom es desa literalment com a text i la taula continua existint amb totes les seves dades | 🟢 NIU-1 |
 | S9 | Cap secret a la imatge ni al repositori | **Donat** la imatge Docker publicada i el repositori git — **Quan** s'escaneja la imatge (`docker history` / eina d'escaneig) i es cerca al repo — **Llavors** no apareix cap hash de contrasenya ni secret en clar | ⚪ NIU-2 |
 | S10 | Política de Cloudflare Access activa abans del primer desplegament públic | **Donat** el domini `niu.fikua.com` — **Quan** s'intenta accedir sense passar per l'autenticació de Cloudflare Access — **Llavors** l'accés es bloqueja | ⚪ NIU-2 (verificació manual documentada, no test de CI) |
 | S11 | Cap dada personal al repositori públic | **Donat** que `fikua/fikua-niu` és un repositori **públic** — **Quan** s'escanegen tots els fitxers versionats (codi, comentaris, migracions, dades de seed, fixtures de test, documentació) — **Llavors** no hi apareix cap nom real, correu electrònic ni detall domèstic identificable; els documents només fan servir `Usuari A` / `Usuari B` i les identitats reals s'injecten per variable d'entorn | 🟢 NIU-1 |
+
+### 2.1.1 Detall dels casos NIU-4 (login/sessió)
+
+> Els set casos següents amplien les files S1b/S2a/S2b/S2c/S4/S5/S6 de
+> la taula anterior amb el mateix nivell de detall que les seccions CF-xx
+> de §1 — cada un descriu l'atac real que el test executa i afirma que
+> **falla**, no que la mitigació "existeix" al codi.
+
+#### S1b — Mutació sense token CSRF es rebutja 🟢 NIU-4
+
+- **Donat** una sessió autenticada vàlida (cookie de sessió present i correcta)
+- **Quan** s'envia una petició `POST`, `PATCH` o `DELETE` amb la cookie de sessió però **sense** el token CSRF de doble-submit esperat (absent o amb un valor que no coincideix amb el que el servidor ha emès per a aquella sessió)
+- **Llavors** la petició es rebutja amb 403 i no produeix cap efecte al sistema (l'ítem no es crea/mou/elimina)
+
+**Test automatitzat:** integració — mateix patró que `security_test.go` de NIU-1 (`newTestServer`, `doJSON`): login vàlid per obtenir cookie + token CSRF legítim; disparar `POST /api/v1/items` (i, en almenys un cas addicional, `PATCH`/`DELETE`) amb la cookie però sense capçalera/camp CSRF, assert 403 i assert per `GET` posterior que no s'ha creat/mogut/eliminat res. Cas addicional: token CSRF present però amb un valor arbitrari no emès pel servidor, mateix assert.
+
+#### S2a — Petició sense cookie és rebutjada 🟢 NIU-4
+
+- **Donat** cap capçalera `Cookie` present a la petició
+- **Quan** es crida un endpoint protegit (p. ex. `GET /api/v1/items`, `GET /api/v1/me`)
+- **Llavors** respon 401 i el cos de la resposta no conté cap dada protegida
+
+**Test automatitzat:** integració — petició HTTP directa sense capçalera `Cookie` contra cada endpoint protegit rellevant, assert codi 401 i assert que el cos no conté camps de domini (`items`, `id`, `display_name`, etc.).
+
+#### S2b — Cookie alterada és rebutjada 🟢 NIU-4
+
+- **Donat** una cookie de sessió amb el valor del token manipulat (un caràcter canviat respecte al token emès per un login real)
+- **Quan** es crida un endpoint protegit amb aquesta cookie manipulada
+- **Llavors** respon 401, amb el mateix tractament (codi i estructura d'error) que S2a — no es revela si el token era "gairebé" vàlid
+
+**Test automatitzat:** integració — login real per obtenir un token vàlid, mutar-ne un caràcter, disparar la petició protegida amb el valor mutat, assert 401 i assert que el cos d'error és idèntic al de S2a.
+
+#### S2c — La base de dades mai conté el token en clar 🟢 NIU-4
+
+- **Donat** una sessió activa creada per un login real, amb el token en clar conegut pel test (perquè el propi test l'ha rebut a la `Set-Cookie` de la resposta de login)
+- **Quan** s'inspecciona directament l'emmagatzematge de sessions del servidor (consulta SQL contra la taula `sessions`, reutilitzant el patró d'obrir `srv.Store.DB` ja usat a `TestSQLInjectionPayload_StoredLiterally_TableSurvives` de NIU-1)
+- **Llavors** cap fila conté un valor igual al token en clar — només el seu hash (SHA-256), verificat comparant el token conegut pel test contra cada valor emmagatzemat i confirmant que no hi ha cap coincidència exacta
+
+**Test automatitzat:** integració — login real, capturar el token en clar de la cookie de resposta, obrir `srv.Store.DB` i fer `SELECT token_hash FROM sessions`, assert que cap fila és igual al token en clar (i, com a comprovació positiva, que `SHA256(token) == token_hash` per confirmar que la sessió sí que hi és emmagatzemada, només que hashada).
+
+#### S4 — 10 intents de login fallits activen limitació 🟢 NIU-4
+
+- **Donat** un usuari (existent o no) i una contrasenya incorrecta o un usuari inexistent
+- **Quan** es fan 10 intents de login consecutius i fallits contra el mateix usuari/procedència
+- **Llavors** l'11è intent es rebutja per límit de freqüència **sense** arribar a verificar la contrasenya (codi d'error diferenciat de "credencials incorrectes"), encara que aquest 11è intent aportés la contrasenya correcta
+
+**Test automatitzat:** integració — bucle de 10 peticions `POST /api/v1/auth/login` fallides consecutives contra el mateix usuari, seguit d'un onzè intent **amb la contrasenya correcta**; assert que aquest onzè intent es rebutja igualment (per límit de freqüència, no per credencials), demostrant que la limitació actua abans que la verificació de contrasenya — no només que "existeix un rebuig". Cas simètric per al llindar per IP (EC-06) i per usuari des de procedències múltiples (EC-07): vegeu `requirements.md` NIU-4 EC-06/EC-07, coberts als mateixos tests d'integració amb variacions d'usuari/procedència.
+
+#### S5 — Usuari inexistent i contrasenya incorrecta donen error idèntic 🟢 NIU-4
+
+- **Donat** un nom d'usuari que no existeix a l'aplicació, i (en un segon intent) un nom d'usuari que sí existeix amb una contrasenya incorrecta
+- **Quan** s'intenta iniciar sessió amb cadascun per separat
+- **Llavors** el cos de la resposta d'error és byte a byte idèntic en tots dos casos (mateix codi HTTP, mateix `code`, mateix `message`, mateixa estructura JSON)
+
+**Test automatitzat:** integració — dues crides a `POST /api/v1/auth/login`, una amb usuari inexistent i una amb usuari existent + contrasenya incorrecta; llegir el cos de resposta complet (bytes crus, no només els camps esperats) de totes dues i assert igualtat exacta. Com a senyal complementari (no bloquejant per si sol), es mesura el temps de resposta de totes dues crides i s'assegura que la diferència no sigui sistemàticament observable (marge ampli, per evitar flakiness en CI).
+
+#### S6 — Token canvia en cada login; logout l'invalida 🟢 NIU-4
+
+- **Donat** un usuari que inicia sessió, tanca sessió i torna a iniciar sessió
+- **Quan** es comparen els tokens de sessió emesos en cadascun dels dos logins
+- **Llavors** són diferents entre ells; **Quan**, a més, es reutilitza el token del primer login (ja invalidat pel logout) en una petició protegida posterior — **Llavors** es rebutja com a no autenticat
+
+**Test automatitzat:** integració — login (captura token 1) → logout → login de nou (captura token 2) → assert `token1 != token2`; a continuació, petició protegida amb `token1` (via cookie manual), assert 401. Cobreix també la fixació de sessió (EC-04 de requirements.md): un token capturat abans d'un login mai esdevé vàlid després.
 
 ### 2.2 Rendiment
 
