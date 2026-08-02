@@ -21,7 +21,7 @@ test('login -> list items -> logout -> reload redirects to /login.html', async (
 
   // Successful login redirects to "/" (default next=/) and mounts the UI.
   await page.waitForURL('/');
-  await expect(page.locator('#user-name')).toHaveText('Usuari A');
+  await expect(page.locator('#user-name')).toHaveText('Oriol');
 
   // Protected action: the shopping list is visible and populated (GET
   // /api/v1/items succeeded under the new session).

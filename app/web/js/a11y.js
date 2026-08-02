@@ -2,6 +2,8 @@
 // managed-tabindex helpers for the "delete" button (only tabbable while
 // its row has focus).
 
+import { t } from './strings.js';
+
 let liveRegion = null;
 
 export function initAnnounce(el) {
@@ -9,7 +11,7 @@ export function initAnnounce(el) {
 }
 
 export function boxLabel(location) {
-  return location === 'shopping' ? 'A comprar' : 'Rebost';
+  return location === 'shopping' ? t('boxShopping') : t('boxPantry');
 }
 
 // announce writes the exact wording from proposal.md §8.7:
@@ -28,9 +30,9 @@ export function announce(text) {
 export function announceMove(itemName, location, movedByDisplayName) {
   const target = boxLabel(location);
   if (movedByDisplayName) {
-    announce(`${itemName} mogut a ${target} per ${movedByDisplayName}.`);
+    announce(t('announceMovedBy', itemName, target, movedByDisplayName));
   } else {
-    announce(`${itemName} mogut a ${target}.`);
+    announce(t('announceMoved', itemName, target));
   }
 }
 

@@ -10,6 +10,7 @@
 
 import { playFlip } from './flip.js';
 import { boxLabel, wireRowFocusTabindex } from './a11y.js';
+import { t } from './strings.js';
 
 const listShopping = () => document.getElementById('list-shopping');
 const listPantry = () => document.getElementById('list-pantry');
@@ -31,8 +32,8 @@ export function renderEmptyState(list, location) {
   const msg = document.createElement('p');
   msg.className = 'msg';
   msg.textContent = location === 'shopping'
-    ? 'Res per comprar ara mateix.'
-    : 'El rebost encara està buit.';
+    ? t('emptyShopping')
+    : t('emptyPantry');
   el.appendChild(icon);
   el.appendChild(msg);
   wrap.appendChild(el);
@@ -47,7 +48,7 @@ export function renderAvatars(item) {
   const addedAvatar = document.createElement('span');
   addedAvatar.className = 'avatar';
   if (item.added_by) {
-    addedAvatar.title = `Afegit per ${item.added_by.display_name}`;
+    addedAvatar.title = t('addedBy', item.added_by.display_name);
     addedAvatar.textContent = item.added_by.avatar_emoji;
   }
   wrap.appendChild(addedAvatar);
@@ -60,7 +61,7 @@ export function renderAvatars(item) {
     wrap.appendChild(link);
     const movedAvatar = document.createElement('span');
     movedAvatar.className = 'avatar';
-    movedAvatar.title = `Mogut per ${item.moved_by.display_name}`;
+    movedAvatar.title = t('movedBy', item.moved_by.display_name);
     movedAvatar.textContent = item.moved_by.avatar_emoji;
     wrap.appendChild(movedAvatar);
   }
@@ -68,11 +69,11 @@ export function renderAvatars(item) {
 }
 
 function ariaLabelFor(item) {
-  const target = item.location === 'shopping' ? 'Rebost' : 'A comprar';
-  let label = `Moure ${item.name} a ${target}`;
+  const target = item.location === 'shopping' ? t('boxPantry') : t('boxShopping');
+  let label = t('moveTo', item.name, target);
   const movedByDifferent = item.moved_by && (!item.added_by || item.moved_by.id !== item.added_by.id);
   if (movedByDifferent) {
-    label += `. Afegit per ${item.added_by ? item.added_by.display_name : ''}, mogut per ${item.moved_by.display_name}`;
+    label += t('movedAddedBy', item.added_by ? item.added_by.display_name : '', item.moved_by.display_name);
   }
   return label;
 }
@@ -130,7 +131,7 @@ export function renderRow(item, handlers) {
   const del = document.createElement('button');
   del.type = 'button';
   del.className = 'delete-btn';
-  del.setAttribute('aria-label', `Eliminar ${item.name}`);
+  del.setAttribute('aria-label', t('deleteItem', item.name));
   del.textContent = '🗑';
   del.addEventListener('click', (e) => {
     e.stopPropagation();
@@ -260,7 +261,7 @@ export function showToast(message) {
   const closeBtn = document.createElement('button');
   closeBtn.type = 'button';
   closeBtn.className = 'close-btn';
-  closeBtn.setAttribute('aria-label', 'Tancar avís');
+  closeBtn.setAttribute('aria-label', t('closeToast'));
   closeBtn.textContent = '×';
   closeBtn.addEventListener('click', dismissToast);
   toast.appendChild(closeBtn);

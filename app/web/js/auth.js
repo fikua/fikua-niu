@@ -2,6 +2,7 @@
 // No innerHTML with user data anywhere here — only textContent.
 
 import { ApiError } from './api.js';
+import { t } from './strings.js';
 
 function getCsrfToken() {
   const match = document.cookie.match(/(?:^|; )niu_csrf=([^;]*)/);
@@ -25,7 +26,7 @@ async function login(username, password) {
 
   if (!res.ok) {
     const code = body?.error?.code || 'internal_error';
-    const message = body?.error?.message || "S'ha produït un error inesperat.";
+    const message = body?.error?.message || t('errorGeneric');
     throw new ApiError(res.status, code, message);
   }
 
@@ -87,7 +88,7 @@ function wireLoginForm() {
     } catch (err) {
       const message = err instanceof ApiError
         ? err.message
-        : "S'ha produït un error inesperat.";
+        : t('errorGeneric');
       showError(message);
     } finally {
       usernameInput.disabled = false;

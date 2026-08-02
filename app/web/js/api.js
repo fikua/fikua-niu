@@ -3,6 +3,8 @@
 // ApiError with { status, code, message } on failure so callers can
 // branch on the uniform error envelope (design.md §6.1).
 
+import { t } from './strings.js';
+
 export class ApiError extends Error {
   constructor(status, code, message) {
     super(message);
@@ -46,7 +48,7 @@ async function request(path, options = {}) {
     handleUnauthenticated();
     // The redirect above is asynchronous; throw so callers' .then chains
     // do not proceed against an unauthenticated response in the meantime.
-    throw new ApiError(401, 'unauthenticated', 'Cal iniciar sessió.');
+    throw new ApiError(401, 'unauthenticated', t('errorNeedsLogin'));
   }
 
   if (res.status === 204) {
@@ -62,7 +64,7 @@ async function request(path, options = {}) {
 
   if (!res.ok) {
     const code = body?.error?.code || 'internal_error';
-    const message = body?.error?.message || "S'ha produït un error inesperat.";
+    const message = body?.error?.message || t('errorGeneric');
     throw new ApiError(res.status, code, message);
   }
 

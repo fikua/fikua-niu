@@ -175,6 +175,14 @@ export function initStore(h) {
   handlers = h;
 }
 
+// rerender() re-renders the current in-memory items with no network call
+// and no FLIP — used to refresh already-mounted text (empty states,
+// aria-labels, tab counts) when the active locale changes, e.g. Chrome's
+// native page-translate feature (see strings.js's onLocaleChange).
+export function rerender() {
+  doRender({});
+}
+
 export function getItems() {
   return items;
 }

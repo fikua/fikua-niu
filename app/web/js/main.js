@@ -5,30 +5,31 @@
 
 import * as api from './api.js';
 import { initAnnounce } from './a11y.js';
-import { initStore, addItemOptimistic, moveItemOptimistic, deleteItemOptimistic, syncFromServer, setCurrentUserId, prefetchItems } from './store.js';
+import { initStore, addItemOptimistic, moveItemOptimistic, deleteItemOptimistic, syncFromServer, setCurrentUserId, prefetchItems, rerender } from './store.js';
 import { dismissToast } from './render.js';
 import { wireTabs, setActivePanel } from './tabs.js';
 import { logout } from './auth.js';
+import { t, onLocaleChange } from './strings.js';
 
 const POLL_INTERVAL_MS = 10000;
 
 const MAX_NAME_LENGTH = 200;
 
 function boxLabelFor(location) {
-  return location === 'shopping' ? 'A comprar' : 'Rebost';
+  return location === 'shopping' ? t('boxShopping') : t('boxPantry');
 }
 
 function validateNameClientSide(raw) {
   const trimmed = raw.trim();
   if (trimmed.length === 0) {
-    return { ok: false, message: "Escriu un nom abans d'afegir." };
+    return { ok: false, message: t('errorEmptyName') };
   }
   if (raw.length > MAX_NAME_LENGTH) {
-    return { ok: false, message: `Massa llarg — màxim 200 caràcters (portes ${raw.length}/200).` };
+    return { ok: false, message: t('errorTooLong', raw.length) };
   }
   // eslint-disable-next-line no-control-regex
   if (/[\x00-\x08\x0B\x0C\x0E-\x1F]/.test(raw)) {
-    return { ok: false, message: 'Aquest nom conté caràcters no vàlids.' };
+    return { ok: false, message: t('errorInvalidChars') };
   }
   return { ok: true, name: trimmed };
 }
@@ -67,6 +68,7 @@ async function main() {
   wireAddForm();
   wireToastDismiss();
   wireLogoutButton();
+  onLocaleChange(() => rerender());
 
   setCurrentUserId(me.id);
   const nameEl = document.getElementById('user-name');
@@ -129,7 +131,7 @@ function wireAddForm() {
       updateCounter();
     } catch (err) {
       // Server-side validation/duplicate errors (EC-06, EC-01..EC-05).
-      const message = err && err.message ? err.message : "S'ha produït un error inesperat.";
+      const message = err && err.message ? err.message : t('errorGeneric');
       showError(message);
     } finally {
       addInput.disabled = false;

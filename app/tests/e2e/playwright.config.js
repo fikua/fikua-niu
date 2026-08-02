@@ -14,11 +14,15 @@ const dbDir = fs.mkdtempSync(path.join(os.tmpdir(), 'niu-e2e-'));
 const dbPath = path.join(dbDir, 'niu.db');
 const port = 8098;
 
-// NIU-4: config.Load() now fails fast without these six vars +
-// NIU_SESSION_SECRET (EC-12) — fixture-only values, never real
-// credentials (S11/NFR-09). login-cycle.spec.js authenticates as
+// NIU-4: config.Load() now fails fast without NIU_SESSION_SECRET +
+// NIU_USER_A_HASH/NIU_USER_B_HASH (EC-12) — fixture-only values, never
+// real credentials (S11/NFR-09). Non-secret identity (username, display
+// name, avatar) is no longer read from the environment — it comes from
+// the committed users.json (config.go LoadUsers), so E2E_USERNAME_A must
+// match users.json's user_a.name ("ocanades"), not an arbitrary fixture
+// name. login-cycle.spec.js authenticates as
 // E2E_USERNAME_A/E2E_PASSWORD_A below.
-export const E2E_USERNAME_A = 'usuari_a';
+export const E2E_USERNAME_A = 'ocanades';
 export const E2E_PASSWORD_A = 'e2e-fixture-password-a';
 const E2E_HASH_A = '$2a$12$HLMGKaY6RMuvie4Vi9kZRenYSfwthJvV0YLziWHr7RNfShHakPejS';
 const E2E_HASH_B = '$2a$12$vWKHyLuv0lMsBoHSMxx4X.05K./.SOfGBYs3xerxqTXmnsoesXjk6';
@@ -48,11 +52,7 @@ export default defineConfig({
       NIU_DB_PATH: dbPath,
       NIU_ENV: 'development',
       NIU_SESSION_SECRET: 'e2e-fixture-session-secret-32bytes!!',
-      NIU_USER_A_NAME: E2E_USERNAME_A,
-      NIU_USER_A_DISPLAY: 'Usuari A',
       NIU_USER_A_HASH: E2E_HASH_A,
-      NIU_USER_B_NAME: 'usuari_b',
-      NIU_USER_B_DISPLAY: 'Usuari B',
       NIU_USER_B_HASH: E2E_HASH_B,
       PATH: process.env.PATH,
     },
