@@ -13,6 +13,19 @@ func TestLogin_HappyPath_TimingWithinNFRBudget(t *testing.T) {
 	if testing.Short() {
 		t.Skip("skipping timing-sensitive test in -short mode")
 	}
+	if raceEnabled {
+		// The race detector instruments every memory access, which
+		// inflates CPU-bound work like bcrypt's cost-12 hashing by a
+		// large, well-documented factor (observed here: ~2.75s under
+		// -race vs ~350ms without it, on identical hardware and the same
+		// binary otherwise). That is -race's known overhead on hashing
+		// workloads, not a regression in login latency — NFR-06's <1s
+		// budget is a real-world production number and was never meant
+		// to hold under an instrumented build. Skip rather than either
+		// loosen the budget (which would hide a genuine slowdown in a
+		// normal build) or leave this failing every -race run.
+		t.Skip("bcrypt timing is not meaningful under -race (see comment); run without -race to validate NFR-06")
+	}
 
 	srv := newAuthTestServer(t)
 

@@ -103,7 +103,30 @@ func NormalizeUsername(raw string) string {
 func (a *PasswordAuthenticator) Login(username, password, ip string) (token string, userID int64, err error) {
 	normalized := NormalizeUsername(username)
 
-	if !a.rateLimiter.Allow(normalized, rateLimitUserThreshold) || !a.rateLimiter.Allow(ip, rateLimitIPThreshold) {
+	// Reserve atomically checks-and-provisionally-counts this attempt
+	// against both keys in one critical section per key (audit finding
+	// F-01: the previous Allow-then-RecordFailure pair left a window
+	// where concurrent requests could all pass the check before any of
+	// them recorded a failure, letting more than the configured limit
+	// through — measured at 11-15 admitted against a limit of 10).
+	//
+	// A successful login rolls the provisional count back below (ADR-03:
+	// a correct password must not consume rate-limit budget), so the
+	// pre-increment here is safe for the common case; it only sticks for
+	// requests that go on to fail.
+	userReserved := a.rateLimiter.Reserve(normalized, rateLimitUserThreshold)
+	ipReserved := a.rateLimiter.Reserve(ip, rateLimitIPThreshold)
+	if !userReserved || !ipReserved {
+		// Whichever key WAS reserved (the other one might still have
+		// succeeded) must be rolled back — this request is being
+		// rejected outright, so neither key should end up double-counted
+		// relative to a request that never reserved at all.
+		if userReserved {
+			a.rateLimiter.Rollback(normalized)
+		}
+		if ipReserved {
+			a.rateLimiter.Rollback(ip)
+		}
 		return "", 0, ErrRateLimited
 	}
 
@@ -118,6 +141,8 @@ func (a *PasswordAuthenticator) Login(username, password, ip string) (token stri
 	if found {
 		compareHash = []byte(hash)
 	} else if !errors.Is(lookupErr, sql.ErrNoRows) {
+		a.rateLimiter.Rollback(normalized)
+		a.rateLimiter.Rollback(ip)
 		return "", 0, fmt.Errorf("auth: lookup user: %w", lookupErr)
 	}
 
@@ -127,10 +152,17 @@ func (a *PasswordAuthenticator) Login(username, password, ip string) (token stri
 	cmpErr := bcrypt.CompareHashAndPassword(compareHash, []byte(password))
 
 	if !found || cmpErr != nil {
-		a.rateLimiter.RecordFailure(normalized)
-		a.rateLimiter.RecordFailure(ip)
+		// The provisional reservation above already counted this attempt
+		// — nothing further to record. Kept as a genuine failure (not
+		// rolled back), unlike the success path below.
 		return "", 0, ErrInvalidCredentials
 	}
+
+	// Success: the reservation above provisionally counted this attempt
+	// as a failure. Undo that — a correct password must never consume
+	// brute-force budget (AC-10/ADR-03).
+	a.rateLimiter.Rollback(normalized)
+	a.rateLimiter.Rollback(ip)
 
 	tok, err := a.CreateSession(id)
 	if err != nil {
