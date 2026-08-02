@@ -8,6 +8,17 @@
 <link rel="stylesheet" href="./app.css">
 <link rel="modulepreload" href="./js/auth.js">
 <link rel="modulepreload" href="./js/strings.js">
+
+<!-- PWA: same manifest + iOS tags as index.html (design.md §8) — needed
+     here too so the installed app stays in standalone mode when the
+     unauthenticated redirect lands on /login.html, instead of dropping
+     back into a regular Safari tab. -->
+<link rel="manifest" href="./manifest.json">
+<meta name="theme-color" content="#FBF6EC">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="niu">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<link rel="apple-touch-icon" href="./assets/icon-180.png">
 </head>
 <body>
   <div class="page login-page">

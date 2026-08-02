@@ -6,6 +6,18 @@
 <title>niu</title>
 <link rel="icon" type="image/svg+xml" href="./assets/favicon.svg">
 <link rel="stylesheet" href="./app.css">
+
+<!-- PWA: installable "Add to Home Screen" on iOS/Android (design.md §8 —
+     no service worker / no offline scope, just standalone display + a
+     dedicated app icon instead of a Safari tab screenshot). -->
+<link rel="manifest" href="./manifest.json">
+<meta name="theme-color" content="#FBF6EC">
+<!-- iOS ignores rel="manifest" for the home-screen icon and standalone
+     mode — it needs its own apple-* tags (verified against iOS 17/18). -->
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="niu">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<link rel="apple-touch-icon" href="./assets/icon-180.png">
 <!-- Preload the full ES module graph in parallel (design.md §8: no
      build step, no bundler). Without this, the browser only discovers
      nested imports (store.js -> render.js -> flip.js, etc.) after

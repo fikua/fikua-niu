@@ -1,0 +1,16 @@
+{
+  "name": "niu",
+  "short_name": "niu",
+  "description": "Llista de la compra i rebost compartits, per a dues persones.",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#FBF6EC",
+  "theme_color": "#FBF6EC",
+  "lang": "ca",
+  "icons": [
+    { "src": "./assets/icon-192.png", "sizes": "192x192", "type": "image/png" },
+    { "src": "./assets/icon-512.png", "sizes": "512x512", "type": "image/png" },
+    { "src": "./assets/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}
