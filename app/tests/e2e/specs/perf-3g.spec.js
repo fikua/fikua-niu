@@ -15,9 +15,17 @@
 // narrows the risk automatically on every run.
 import { test, expect, chromium } from '@playwright/test';
 
-test('initial load is interactive in under 1s on a simulated 3G connection', async ({ baseURL }) => {
+// NIU-4: this spec launches its own isolated browser/context (to attach a
+// CDP session for network throttling) instead of using the fixture-level
+// `page`, so it does not automatically inherit the suite-wide
+// storageState set up by global-setup.js. AC-05 now redirects an
+// unauthenticated "/" to /login.html, so without an authenticated context
+// this test would measure the login screen, not the list — pass the same
+// storageState explicitly.
+test('initial load is interactive in under 1s on a simulated 3G connection', async ({ baseURL }, testInfo) => {
+  const storageState = testInfo.project.use.storageState;
   const browser = await chromium.launch();
-  const context = await browser.newContext();
+  const context = await browser.newContext({ storageState });
   const page = await context.newPage();
   const client = await context.newCDPSession(page);
 

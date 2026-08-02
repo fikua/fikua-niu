@@ -20,15 +20,19 @@
 <link rel="modulepreload" href="./js/render.js">
 <link rel="modulepreload" href="./js/store.js">
 <link rel="modulepreload" href="./js/tabs.js">
+<link rel="modulepreload" href="./js/auth.js">
 <link rel="modulepreload" href="./js/main.js">
 </head>
 <body>
   <div class="page">
     <header class="app-header">
       <span class="wordmark">niu</span>
-      <div class="user-chip" id="user-chip">
-        <span class="avatar" aria-hidden="true" id="user-avatar">🐦</span>
-        <span id="user-name"></span>
+      <div class="header-right">
+        <div class="user-chip" id="user-chip">
+          <span class="avatar" aria-hidden="true" id="user-avatar">🐦</span>
+          <span id="user-name"></span>
+        </div>
+        <button class="logout-btn" id="logout-btn" type="button">Tancar sessió</button>
       </div>
     </header>
 

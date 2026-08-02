@@ -154,6 +154,11 @@ header.app-header .wordmark {
   font-weight: var(--type-title-weight);
   color: var(--color-moss);
 }
+.header-right {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+}
 .user-chip {
   display: flex;
   align-items: center;
@@ -164,6 +169,18 @@ header.app-header .wordmark {
   padding: var(--space-xs) var(--space-md);
   font-size: var(--type-body-size);
 }
+.logout-btn {
+  background: transparent;
+  border: none;
+  color: var(--color-text-secondary);
+  font-family: inherit;
+  font-size: var(--type-caption-size);
+  text-decoration: underline;
+  cursor: pointer;
+  padding: var(--space-xs) var(--space-sm);
+}
+.logout-btn:hover { color: var(--color-text-primary); }
+.logout-btn:focus-visible { outline: 2px solid var(--color-focus-ring); outline-offset: 2px; }
 .user-chip .avatar {
   width: 28px; height: 28px;
   border-radius: 50%;
@@ -512,3 +529,29 @@ header.app-header .wordmark {
 @media (min-width: 768px) {
   .panel { display: block !important; }
 }
+
+/* ================= Login screen (NIU-4) =================
+   No dedicated mockup (Stage 1.5 skipped) — reuses AddItemInput/add-btn/
+   error-msg tokens verbatim, no new visual language (design.md §7/§8). */
+
+.login-main {
+  max-width: 360px;
+  margin: var(--space-2xl) auto 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-md);
+}
+.login-title {
+  font-size: var(--type-title-size);
+  line-height: var(--type-title-line);
+  font-weight: var(--type-title-weight);
+  margin: 0;
+  text-align: center;
+}
+.login-form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-md);
+}
+.login-form .add-input-group { margin-top: 0; }
+.login-submit { width: 100%; text-align: center; }

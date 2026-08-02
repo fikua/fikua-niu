@@ -5,9 +5,10 @@
 
 import * as api from './api.js';
 import { initAnnounce } from './a11y.js';
-import { initStore, addItemOptimistic, moveItemOptimistic, deleteItemOptimistic, syncFromServer, setCurrentUserId } from './store.js';
+import { initStore, addItemOptimistic, moveItemOptimistic, deleteItemOptimistic, syncFromServer, setCurrentUserId, prefetchItems } from './store.js';
 import { dismissToast } from './render.js';
 import { wireTabs, setActivePanel } from './tabs.js';
+import { logout } from './auth.js';
 
 const POLL_INTERVAL_MS = 10000;
 
@@ -32,7 +33,27 @@ function validateNameClientSide(raw) {
   return { ok: true, name: trimmed };
 }
 
-function main() {
+async function main() {
+  // AC-05/design.md §7: resolve identity BEFORE mounting any UI. On 401,
+  // api.getMe() already triggers the redirect to /login.html?next=... (via
+  // api.js's centralized handleUnauthenticated) — returning here avoids
+  // rendering so much as an empty list first (no flicker).
+  //
+  // GET /api/v1/items is kicked off in parallel (not awaited here) so the
+  // two requests share one round trip's worth of latency instead of being
+  // serialized — NFR-06 budgets initial load at <1s even on a throttled
+  // connection, and getMe()+getItems() run one-after-another would burn a
+  // second RTT for no reason (both succeed or fail together: no session
+  // means neither endpoint returns data).
+  prefetchItems();
+
+  let me;
+  try {
+    me = await api.getMe();
+  } catch {
+    return;
+  }
+
   const liveRegion = document.getElementById('live-region');
   initAnnounce(liveRegion);
 
@@ -45,17 +66,13 @@ function main() {
   setActivePanel('shopping');
   wireAddForm();
   wireToastDismiss();
+  wireLogoutButton();
 
-  // GET /api/v1/me on load (AC-07).
-  api.getMe().then((me) => {
-    setCurrentUserId(me.id);
-    const nameEl = document.getElementById('user-name');
-    const avatarEl = document.getElementById('user-avatar');
-    if (nameEl) nameEl.textContent = me.display_name;
-    if (avatarEl) avatarEl.textContent = me.avatar_emoji;
-  }).catch(() => {
-    // Non-fatal: the app still functions, just without the header chip.
-  });
+  setCurrentUserId(me.id);
+  const nameEl = document.getElementById('user-name');
+  const avatarEl = document.getElementById('user-avatar');
+  if (nameEl) nameEl.textContent = me.display_name;
+  if (avatarEl) avatarEl.textContent = me.avatar_emoji;
 
   // Flux 3 (design.md §5): immediate sync, then poll every ~10s, plus a
   // refetch on window focus (AC-08).
@@ -138,6 +155,14 @@ function wireToastDismiss() {
     if (e.key === 'Escape') {
       dismissToast();
     }
+  });
+}
+
+function wireLogoutButton() {
+  const btn = document.getElementById('logout-btn');
+  if (!btn) return;
+  btn.addEventListener('click', () => {
+    logout();
   });
 }
 

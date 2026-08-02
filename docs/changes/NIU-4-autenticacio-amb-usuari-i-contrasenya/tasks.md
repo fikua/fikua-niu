@@ -105,57 +105,57 @@ updated: "2026-08-02"
 
 ### Foundations
 
-- [ ] **T-01** — Afegir la dependència `golang.org/x/crypto/bcrypt` a
+- [x] **T-01** — Afegir la dependència `golang.org/x/crypto/bcrypt` a
   `app/go.mod`/`go.sum` (`go get golang.org/x/crypto/bcrypt`) · *covers:* NFR-01
-- [ ] **T-02** — Estendre `internal/config/config.go`: afegir camps
+- [x] **T-02** — Estendre `internal/config/config.go`: afegir camps
   `SessionSecret`, `UserAName`, `UserADisplay`, `UserAHash`, `UserBName`,
   `UserBDisplay`, `UserBHash` a `Config`, llegits amb
   `NIU_SESSION_SECRET`, `NIU_USER_A_NAME`, `NIU_USER_A_DISPLAY`,
   `NIU_USER_A_HASH`, `NIU_USER_B_NAME`, `NIU_USER_B_DISPLAY`,
   `NIU_USER_B_HASH` (`PLAN.md` §6) · *covers:* AC-13
-- [ ] **T-03** — Afegir validació fail-fast a `config.Load()`: error si
+- [x] **T-03** — Afegir validació fail-fast a `config.Load()`: error si
   falta qualsevol dels sis camps nous o si `len(SessionSecret) < 32`
   bytes; el procés no arrenca en cap cas parcial (ADR-03 NIU-1 pattern,
   `design.md` §2 punt 9) · *covers:* AC-13, EC-12, NFR-04, NFR-09
-- [ ] **T-04** — Crear `internal/auth/ratelimiter.go`: estructura
+- [x] **T-04** — Crear `internal/auth/ratelimiter.go`: estructura
   `RateLimiter` amb `map[string]*bucket` protegit per `sync.Mutex`,
   `bucket{count int, windowStart time.Time}`; mètodes `Allow(key string,
   limit int) bool` i `RecordFailure(key string)` implementant la
   finestra fixa reiniciable de 5 minuts (ADR-01) · *covers:* NFR-05 (base)
-- [ ] **T-05** — Afegir a `RateLimiter` el mètode `Cleanup()` que esborra
+- [x] **T-05** — Afegir a `RateLimiter` el mètode `Cleanup()` que esborra
   entrades del mapa amb `time.Since(windowStart) > 5*time.Minute`
   (ADR-01, reutilitzat pel ticker de T-18) · *covers:* NFR-05 (base)
-- [ ] **T-06** — Cablejar a `internal/auth` les dues claus independents
+- [x] **T-06** — Cablejar a `internal/auth` les dues claus independents
   del rate limiter (usuari normalitzat, llindar 10/5min; IP via
   `Cf-Connecting-Ip` amb fallback a `r.RemoteAddr`, llindar 20/5min),
   consultades totes dues abans de bcrypt (ADR-01) · *covers:* AC-10, EC-06, EC-07, NFR-05
-- [ ] **T-07** — Crear `internal/auth/password.go`: precalcular a la
+- [x] **T-07** — Crear `internal/auth/password.go`: precalcular a la
   construcció de `PasswordAuthenticator` un `dummyHash` bcrypt fix (cost
   12) d'una contrasenya dummy embeguda com a constant, generat un sol cop
   (ADR-02) · *covers:* AC-11
-- [ ] **T-08** — Afegir a `internal/httpapi` la validació d'entrada pura
+- [x] **T-08** — Afegir a `internal/httpapi` la validació d'entrada pura
   del payload de login (`username != ""` post-`TrimSpace`, `password !=
   ""` sense trim) com a pas independent, previ a qualsevol crida al rate
   limiter (ADR-03, pas 2) · *covers:* EC-08, EC-09
 
 ### Implementation
 
-- [ ] **T-09** — Implementar `PasswordAuthenticator.Login(username,
+- [x] **T-09** — Implementar `PasswordAuthenticator.Login(username,
   password string) (token string, err error)` a `internal/auth`: cerca
   d'usuari per nom normalitzat + crida `bcrypt.CompareHashAndPassword`
   **sempre** (contra `user.PasswordHash` o `dummyHash` de T-07, mai una
   branca condicional que la salti) (ADR-02) · *covers:* NFR-01, NFR-03
-- [ ] **T-10** — Implementar `CreateSession(userID int64) (token string,
+- [x] **T-10** — Implementar `CreateSession(userID int64) (token string,
   err error)` a `internal/auth`: genera 256 bits amb `crypto/rand`,
   calcula `SHA-256(token)`, `INSERT INTO sessions (token_hash, user_id,
   expires_at)` amb `expires_at = now + 30 dies`; el token en clar mai es
   persisteix, només viu a la resposta HTTP (`design.md` §5 Flux 1 pas 7) · *covers:* AC-08, AC-09, AC-12, EC-04, NFR-02
-- [ ] **T-11** — Implementar `PasswordAuthenticator.CurrentUser(r
+- [x] **T-11** — Implementar `PasswordAuthenticator.CurrentUser(r
   *http.Request) (auth.User, error)`: llegeix la cookie `niu_session`,
   calcula `SHA-256(token)`, la cerca a `sessions`, comprova `expires_at >
   now`; substitueix `StubAuthenticator` darrere de la mateixa interfície
   `auth.Authenticator` (ADR-03 NIU-1, `design.md` §4) · *covers:* AC-05, AC-12
-- [ ] **T-12** — Implementar el pipeline complet de `handleLogin` a nou
+- [x] **T-12** — Implementar el pipeline complet de `handleLogin` a nou
   fitxer `internal/httpapi/auth_handlers.go`, seguint l'ordre estricte
   d'ADR-03: (1) decodificació JSON → `400`; (2) validació d'entrada
   (T-08) → `400 validation_failed`, rate limiter no tocat; (3) consulta
@@ -166,32 +166,32 @@ updated: "2026-08-02"
   (T-15) + `Set-Cookie` ×2 + `200` amb `{"user": {...}}`; registrar cada
   intent amb `slog.Info("login attempt", "username", ..., "result",
   ..., "ip", ...)` sense mai el valor de `password` (`design.md` §8) · *covers:* AC-01, AC-02, AC-03, AC-10, AC-11, NFR-07
-- [ ] **T-13** — Implementar `Logout(token string) error` a
+- [x] **T-13** — Implementar `Logout(token string) error` a
   `internal/auth` (`DELETE FROM sessions WHERE token_hash = ?`) i
   `handleLogout` a `auth_handlers.go`: resol la sessió via
   `WithCurrentUser` (ja passa per aquest middleware), crida `auth.Logout`,
   respon `204` (`design.md` §5 Flux 3) · *covers:* AC-04, AC-09, EC-05
-- [ ] **T-14** — Afegir `CleanupExpired(ctx context.Context) error` a
+- [x] **T-14** — Afegir `CleanupExpired(ctx context.Context) error` a
   `internal/auth`: `DELETE FROM sessions WHERE expires_at <
   CURRENT_TIMESTAMP`, reutilitzant la mateixa connexió `*sql.DB` (ADR-04) · *covers:* AC-12, EC-10, NFR-08
-- [ ] **T-15** — Crear `internal/httpapi/csrf.go`: a l'èxit de login,
+- [x] **T-15** — Crear `internal/httpapi/csrf.go`: a l'èxit de login,
   generar un segon valor aleatori de 128 bits i codificar-lo com
   `Set-Cookie: niu_csrf=<hmac>; Secure; Path=/; SameSite=Strict;
   Max-Age=2592000` (sense `HttpOnly`), derivat com
   `HMAC-SHA256(NIU_SESSION_SECRET, token_hash)` en base64 URL-safe
   (ADR-05) — no es persisteix enlloc, es recalcula sota demanda · *covers:* AC-06, AC-07, EC-03
-- [ ] **T-16** — Implementar el middleware `RequireCSRF` a
+- [x] **T-16** — Implementar el middleware `RequireCSRF` a
   `internal/httpapi/csrf.go`: recalcula l'HMAC esperat a partir del
   `token_hash` de la sessió ja resolta per `WithCurrentUser` i el compara
   amb `hmac.Equal` contra la capçalera `X-CSRF-Token`; discrepància
   (absent, buida, no coincident) → `403 csrf_failed`, handler mai
   s'executa (ADR-05) · *covers:* AC-05, AC-06, AC-07
-- [ ] **T-17** — Afegir a `internal/httpapi/errors.go` els nous codis
+- [x] **T-17** — Afegir a `internal/httpapi/errors.go` els nous codis
   d'error de l'envelope `apiError`: `invalid_credentials`,
   `rate_limited`, `csrf_failed` (reutilitzar `validation_failed` i
   `unauthenticated` ja existents) amb els missatges exactes de
   `design.md` §6.1 · *covers:* AC-11
-- [ ] **T-18** — **Modificar `router.go`** (fitxer ja enviat a
+- [x] **T-18** — **Modificar `router.go`** (fitxer ja enviat a
   producció a NIU-1 — canvi quirúrgic, no reescriptura): registrar `POST
   /api/v1/auth/login` i `POST /api/v1/auth/logout` **fora** de
   `WithCurrentUser` per a login (encara no hi ha sessió) però `logout` sí
@@ -199,7 +199,7 @@ updated: "2026-08-02"
   existent d'`/api/v1/items` (`POST`/`PATCH`/`DELETE`) i a
   `/api/v1/auth/logout`, mai a `/api/v1/auth/login` ni a cap `GET`
   (`design.md` §4, risc R-07). **`items_handlers.go` no es toca.** · *covers:* AC-06, AC-07, EC-03
-- [ ] **T-19** — **Modificar `cmd/niu/main.go`**: (1) després
+- [x] **T-19** — **Modificar `cmd/niu/main.go`**: (1) després
   d'`store.Open`, executar dues `UPDATE users SET password_hash = ? WHERE
   name = ?` (Usuari A, Usuari B) dins una transacció amb els valors de
   `cfg`, verificant `RowsAffected == 1` per cada `UPDATE` i fallant
@@ -210,107 +210,107 @@ updated: "2026-08-02"
   `CleanupExpired` (T-14) + una primera passada immediata a l'arrencada,
   aturant-se netament amb el `context.Context` de shutdown ja existent
   (ADR-04) · *covers:* AC-13, EC-12
-- [ ] **T-20** — Crear `app/web/login.html`: document separat
+- [x] **T-20** — Crear `app/web/login.html`: document separat
   d'`index.html`, mateix `<head>` (fonts self-hosted, `app.css`),
   formulari mínim (`username`, `password type="password"`, botó submit)
   reutilitzant les classes de `component-add-input.html` del
   design-system i un botó primari existent, `<label>` associades
   (`for`/`id`), sense maqueta dedicada (`design.md` §7/§8) · *covers:* AC-01
-- [ ] **T-21** — Crear `app/web/js/auth.js`: `login(username, password)`
+- [x] **T-21** — Crear `app/web/js/auth.js`: `login(username, password)`
   crida `fetch('/api/v1/auth/login', {credentials:'same-origin', ...})`,
   en `200` llegeix `?next=` (per defecte `/`) i hi redirigeix; en
   `401`/`429`/`400` mostra el `message` del cos d'error sota el
   formulari; `logout()` crida `POST /api/v1/auth/logout` amb la
   capçalera CSRF llegida de `document.cookie` i redirigeix a
   `/login.html` (`design.md` §7) · *covers:* AC-01, AC-04
-- [ ] **T-22** — Estendre `app/web/js/api.js`: afegir `getCsrfToken()`
+- [x] **T-22** — Estendre `app/web/js/api.js`: afegir `getCsrfToken()`
   (llegeix `niu_csrf` de `document.cookie`, sense llibreria externa);
   cada wrapper de mutació (`addItem`, `moveItem`, `deleteItem`) inclou la
   capçalera `X-CSRF-Token`; afegir `handleUnauthenticated()` centralitzat
   que redirigeix a `/login.html?next=<ruta actual>`, cridat per **tots**
   els wrappers (mutació i lectura) en rebre `401` (`design.md` §7) · *covers:* AC-05, AC-06
-- [ ] **T-23** — Estendre `app/web/js/main.js`: a l'arrencada, abans de
+- [x] **T-23** — Estendre `app/web/js/main.js`: a l'arrencada, abans de
   muntar la UI, crida `getMe()`; si `401`, redirigeix immediatament a
   `/login.html?next=/` sense renderitzar cap fila (evita parpelleig,
   `design.md` §7) · *covers:* AC-05
 
 ### Verification
 
-- [ ] **T-24** — Afegir tests unitaris a `internal/auth` per al rate
+- [x] **T-24** — Afegir tests unitaris a `internal/auth` per al rate
   limiter (`ratelimiter_test.go`): expiració de `bucket` (finestra de 5
   minuts es reinicia), independència de comptador per usuari vs. per IP
   (bloquejar un no bloqueja l'altre), i que l'11è intent es rebutja
   mentre el 10è encara passa · *covers:* AC-10, EC-06, EC-07, NFR-05
-- [ ] **T-25** — Afegir test unitari dedicat a `internal/auth`
+- [x] **T-25** — Afegir test unitari dedicat a `internal/auth`
   (`password_test.go`) per al mecanisme d'ADR-02: assert que
   `bcrypt.CompareHashAndPassword` es crida exactament una vegada tant si
   l'usuari existeix com si no (mitjançant mesura de temps d'execució
   amb marge ampli entre els dos camins, mateix criteri que NFR-03), i que
   la comparació contra `dummyHash` sempre retorna fals · *covers:* AC-11, NFR-03
-- [ ] **T-26** — Afegir tests d'integració a
+- [x] **T-26** — Afegir tests d'integració a
   `tests/integration/auth_test.go` per AC-01/AC-02/AC-03/AC-11/S5: login
   amb credencials correctes obre sessió amb cookies `HttpOnly; Secure;
   Path=/; SameSite=Strict`; login amb contrasenya incorrecta i amb
   usuari inexistent produeixen cos de resposta byte-idèntic (llegit com
   a bytes crus, no camps individuals) · *covers:* AC-01, AC-02, AC-03, AC-11
-- [ ] **T-27** — Afegir tests d'integració per AC-04/AC-05/AC-09/EC-01/
+- [x] **T-27** — Afegir tests d'integració per AC-04/AC-05/AC-09/EC-01/
   EC-02/EC-05/EC-11/S2a/S2b (a `auth_test.go`): petició sense cookie →
   `401`; cookie amb un caràcter mutat → `401` amb el mateix cos que sense
   cookie; logout invalida la sessió al servidor; reutilitzar token
   post-logout → `401`; sessió esborrada entremig → `401` · *covers:* AC-04, AC-05, AC-09, EC-01, EC-02, EC-05, EC-11
-- [ ] **T-28** — Afegir test d'integració per S2c (`auth_test.go`):
+- [x] **T-28** — Afegir test d'integració per S2c (`auth_test.go`):
   login real, capturar el token en clar de la `Set-Cookie` de resposta,
   obrir `srv.Store.DB` (mateix patró que
   `TestSQLInjectionPayload_StoredLiterally_TableSurvives`), `SELECT
   token_hash FROM sessions`, assert que cap fila coincideix amb el token
   en clar i que `SHA256(token) == token_hash` · *covers:* AC-08
-- [ ] **T-29** — Afegir tests d'integració per AC-10/EC-06/EC-07/S4
+- [x] **T-29** — Afegir tests d'integració per AC-10/EC-06/EC-07/S4
   (`auth_test.go`): bucle de 10 intents fallits contra el mateix usuari
   seguit d'un onzè intent **amb la contrasenya correcta** → rebutjat
   igualment per `429 rate_limited` (no per credencials); cas simètric per
   llindar per IP (EC-06, atac contra usuaris diferents des de la mateixa
   procedència) i per usuari des de procedències diferents (EC-07) · *covers:* AC-10, EC-06, EC-07
-- [ ] **T-30** — Afegir tests d'integració per AC-06/AC-07/EC-03/S1b
+- [x] **T-30** — Afegir tests d'integració per AC-06/AC-07/EC-03/S1b
   (`csrf_test.go`): mutació amb token CSRF vàlid → processada amb
   normalitat; mutació sense token o amb token arbitrari no emès pel
   servidor → `403 csrf_failed`, `GET` posterior confirma que no s'ha
   produït cap efecte; retrofit explícit sobre almenys `POST
   /api/v1/items` i un `PATCH`/`DELETE` addicional (codi ja enviat a
   producció a NIU-1, ara protegit per primer cop) · *covers:* AC-06, AC-07, EC-03
-- [ ] **T-31** — Afegir test d'integració per EC-08/EC-09 (`auth_test.go`):
+- [x] **T-31** — Afegir test d'integració per EC-08/EC-09 (`auth_test.go`):
   payload de login sense `password` o sense `username` (buit o absent)
   → `400 validation_failed`, i confirmar que el rate limiter no ha
   registrat cap intent (login posterior amb credencials correctes
   segueix funcionant sense estar limitat) · *covers:* EC-08, EC-09
-- [ ] **T-32** — Afegir test d'integració per AC-12/EC-10
+- [x] **T-32** — Afegir test d'integració per AC-12/EC-10
   (`auth_test.go`): sembrar directament una sessió amb `expires_at` en
   el passat via `srv.Store.DB`, confirmar que una petició protegida amb
   aquell token es rebutja (`401`), i forçar l'execució de
   `CleanupExpired` (sense esperar el ticker real) confirmant que la fila
   desapareix de `sessions` · *covers:* AC-12, EC-10, NFR-08
-- [ ] **T-33** — Afegir test d'integració per AC-13/EC-12
+- [x] **T-33** — Afegir test d'integració per AC-13/EC-12
   (`config_test.go` o `tests/integration/`): arrencada del procés (o
   crida directa a `config.Load()`) sense `NIU_SESSION_SECRET`, sense
   `NIU_USER_A_HASH`/`NIU_USER_B_HASH`, o amb `NIU_SESSION_SECRET` <32
   bytes → falla amb error clar, mai arrenca en estat parcial; amb totes
   les variables presents → els dos usuaris poden fer login amb èxit
   contra els hashos configurats · *covers:* AC-13, EC-12
-- [ ] **T-34** — Afegir test d'integració per NFR-01/NFR-06
+- [x] **T-34** — Afegir test d'integració per NFR-01/NFR-06
   (`auth_test.go`): mesura directa del temps de resposta del login camí
   feliç — assert > 200ms (cost bcrypt real, no mockejat) i < 1s p95 en
   diverses repeticions · *covers:* NFR-01, NFR-06
-- [ ] **T-35** — Afegir test d'integració per NFR-07 (`auth_test.go`):
+- [x] **T-35** — Afegir test d'integració per NFR-07 (`auth_test.go`):
   capturar l'output de `log/slog` (mateix mecanisme ja usat a NIU-1)
   durant un intent de login fallit i un de limitat per rate limit,
   assert que el log conté usuari + resultat + IP i **mai** el valor de
   `password` ni el token en clar · *covers:* NFR-07
-- [ ] **T-36** — Afegir test E2E Playwright a
+- [x] **T-36** — Afegir test E2E Playwright a
   `tests/e2e/specs/login-cycle.spec.js` per AC-14: cicle complet
   login (formulari real, credencials de test) → acció protegida (llistar
   ítems, ja visible després del login) → logout (botó/enllaç real) →
   assert que després del logout una recàrrega redirigeix a
   `/login.html`, sense cap error inesperat en cap pas · *covers:* AC-14
-- [ ] **T-37** — Executar `commands.test` (`cd app && go test ./...`),
+- [x] **T-37** — Executar `commands.test` (`cd app && go test ./...`),
   `commands.lint` (`gofmt -l`) i `commands.typecheck` (`cd app && go vet
   ./...`) del manifest; confirmar que els 7 casos 🟢 NIU-4 del pla de
   proves (S1b, S2a, S2b, S2c, S4, S5, S6, `docs/test-plan.md` §2.1/

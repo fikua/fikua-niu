@@ -7,13 +7,27 @@ package auth
 
 import (
 	"context"
+	"errors"
 	"net/http"
 )
 
 // User is the identity resolved for the current request.
 type User struct {
 	ID int64
+	// SessionTokenHash is the SHA-256 hash of the session token that
+	// resolved this user, when resolved via a real session (empty for
+	// StubAuthenticator). httpapi.RequireCSRF (ADR-05) derives the
+	// expected CSRF value from this field instead of re-reading the
+	// session cookie a second time.
+	SessionTokenHash string
 }
+
+// ErrUnauthenticated is returned by Authenticator.CurrentUser when no
+// valid session is present (absent cookie, mutated token, unknown token,
+// or expired session — EC-01/EC-02/EC-11/AC-05/AC-12). httpapi maps this
+// specific error to 401; any other error is a genuine internal failure and
+// maps to 500.
+var ErrUnauthenticated = errors.New("auth: unauthenticated")
 
 // Authenticator resolves the current user for an incoming request.
 // httpapi calls this exclusively through the WithCurrentUser middleware —

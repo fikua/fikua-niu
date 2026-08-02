@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+<html lang="ca">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>niu — Iniciar sessió</title>
+<link rel="stylesheet" href="./app.css">
+<link rel="modulepreload" href="./js/auth.js">
+</head>
+<body>
+  <div class="page login-page">
+    <header class="app-header">
+      <span class="wordmark">niu</span>
+    </header>
+
+    <main class="login-main">
+      <h1 class="login-title">Iniciar sessió</h1>
+
+      <form id="login-form" class="login-form" novalidate>
+        <div class="add-input-group" id="username-group">
+          <label for="username-input" class="sr-only">Nom d'usuari</label>
+          <input type="text" id="username-input" name="username" placeholder="Nom d'usuari" autocomplete="username" required>
+        </div>
+
+        <div class="add-input-group" id="password-group">
+          <label for="password-input" class="sr-only">Contrasenya</label>
+          <input type="password" id="password-input" name="password" placeholder="Contrasenya" autocomplete="current-password" required>
+        </div>
+
+        <span class="error-msg" id="login-error" role="alert" aria-live="polite" hidden></span>
+
+        <button class="add-btn login-submit" id="login-submit" type="submit">Entrar</button>
+      </form>
+    </main>
+  </div>
+
+  <script type="module" src="./js/auth.js"></script>
+</body>
+</html>

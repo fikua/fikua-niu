@@ -1,6 +1,7 @@
 package httpapi
 
 import (
+	"errors"
 	"log/slog"
 	"net/http"
 
@@ -59,6 +60,11 @@ func WithCurrentUser(authenticator auth.Authenticator) func(http.Handler) http.H
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			user, err := authenticator.CurrentUser(r)
 			if err != nil {
+				if errors.Is(err, auth.ErrUnauthenticated) {
+					// AC-05: minimal body, never exposes protected data.
+					writeError(w, http.StatusUnauthorized, "unauthenticated", "Cal iniciar sessió.")
+					return
+				}
 				writeError(w, http.StatusInternalServerError, "internal_error", "S'ha produït un error inesperat.")
 				slog.Error("auth: failed to resolve current user", "error", err)
 				return

@@ -117,6 +117,22 @@ function applyServerItem(serverItem) {
   }
 }
 
+// prefetchItems() lets main.js kick off GET /api/v1/items concurrently
+// with GET /api/v1/me (NIU-4/AC-05 gates rendering on getMe(), but there
+// is no reason to also serialize the items fetch behind it — on a slow
+// connection that costs a full extra round trip, see perf-3g.spec.js/
+// NFR-06). The first syncFromServer() call consumes this in-flight
+// promise instead of issuing a second, redundant request.
+let prefetchedItemsPromise = null;
+
+export function prefetchItems() {
+  prefetchedItemsPromise = api.getItems();
+  // Swallow rejections here so an unused/failed prefetch never surfaces as
+  // an unhandled promise rejection — syncFromServer() below still awaits
+  // (and separately catches) the same promise.
+  prefetchedItemsPromise.catch(() => {});
+}
+
 // syncFromServer() polls GET /api/v1/items and diffs by id + location +
 // moved_at against the previously known state, to detect remote changes
 // (AC-08) and announce them with the "per {usuari}" wording (AC-16,
@@ -124,7 +140,9 @@ function applyServerItem(serverItem) {
 export async function syncFromServer() {
   let serverItems;
   try {
-    serverItems = await api.getItems();
+    const pending = prefetchedItemsPromise;
+    prefetchedItemsPromise = null;
+    serverItems = await (pending || api.getItems());
   } catch {
     return; // transient network failure — try again on the next tick
   }

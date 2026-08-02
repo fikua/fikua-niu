@@ -19,7 +19,7 @@ import (
 // registered on the exact same pattern — i.e. GET is never wired to a
 // handler shared with a mutating method.
 func TestNoMutatingGETRoutes(t *testing.T) {
-	router := NewRouter(nil, fakeHealthChecker{}, fakeAuthenticator{}, fstest.MapFS{})
+	router := NewRouter(nil, fakeHealthChecker{}, fakeAuthenticator{}, fstest.MapFS{}, true)
 
 	chiRouter, ok := router.(chi.Router)
 	if !ok {
@@ -70,7 +70,7 @@ func TestNoMutatingGETRoutes(t *testing.T) {
 func TestGETRequestsDoNotMutateState(t *testing.T) {
 	repo := &spyRepo{}
 	svc := items.NewService(repo, &spySink{}, &spyUsers{})
-	router := NewRouter(svc, fakeHealthChecker{}, fakeAuthenticator{}, fstest.MapFS{})
+	router := NewRouter(svc, fakeHealthChecker{}, fakeAuthenticator{}, fstest.MapFS{}, true)
 
 	chiRouter, ok := router.(chi.Router)
 	if !ok {
