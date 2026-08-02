@@ -35,9 +35,11 @@ type Config struct {
 	UserAName    string
 	UserADisplay string
 	UserAHash    string
+	UserAAvatar  string
 	UserBName    string
 	UserBDisplay string
 	UserBHash    string
+	UserBAvatar  string
 }
 
 const (
@@ -59,9 +61,11 @@ func Load() (Config, error) {
 		UserAName:     os.Getenv("NIU_USER_A_NAME"),
 		UserADisplay:  os.Getenv("NIU_USER_A_DISPLAY"),
 		UserAHash:     os.Getenv("NIU_USER_A_HASH"),
+		UserAAvatar:   getEnvOrDefault("NIU_USER_A_AVATAR", "🐦"),
 		UserBName:     os.Getenv("NIU_USER_B_NAME"),
 		UserBDisplay:  os.Getenv("NIU_USER_B_DISPLAY"),
 		UserBHash:     os.Getenv("NIU_USER_B_HASH"),
+		UserBAvatar:   getEnvOrDefault("NIU_USER_B_AVATAR", "🦊"),
 	}
 
 	if cfg.Port == "" {

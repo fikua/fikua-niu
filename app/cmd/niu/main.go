@@ -99,9 +99,13 @@ func run() error {
 // configuration into the users table (design.md §6.2, AC-13, EC-12,
 // risk R-05) — never a migration, since the users already exist from
 // migration 002. Runs inside a transaction; fails the whole startup if
-// either UPDATE affects zero rows (a name mismatch is a real
-// configuration error, not an expected case, since migration 002 already
-// seeded usuari_a/usuari_b).
+// either UPDATE affects zero rows.
+//
+// Keyed by id (1=A, 2=B), not by name — migration 002's ids never
+// change, but name/display_name/avatar_emoji are all meant to be
+// reconfigurable from the environment (e.g. renaming usuari_a's login
+// to a real username, or swapping the avatar emoji), so matching on name
+// would break the moment someone actually renames a user.
 func seedCredentials(db *sql.DB, cfg config.Config) error {
 	tx, err := db.BeginTx(context.Background(), nil)
 	if err != nil {
@@ -110,27 +114,28 @@ func seedCredentials(db *sql.DB, cfg config.Config) error {
 	defer tx.Rollback()
 
 	seeds := []struct {
-		name, display, hash string
+		id                          int64
+		name, display, hash, avatar string
 	}{
-		{auth.NormalizeUsername(cfg.UserAName), cfg.UserADisplay, cfg.UserAHash},
-		{auth.NormalizeUsername(cfg.UserBName), cfg.UserBDisplay, cfg.UserBHash},
+		{1, auth.NormalizeUsername(cfg.UserAName), cfg.UserADisplay, cfg.UserAHash, cfg.UserAAvatar},
+		{2, auth.NormalizeUsername(cfg.UserBName), cfg.UserBDisplay, cfg.UserBHash, cfg.UserBAvatar},
 	}
 
 	for _, seed := range seeds {
 		res, err := tx.Exec(
-			`UPDATE users SET password_hash = ?, display_name = ? WHERE name = ?`,
-			seed.hash, seed.display, seed.name,
+			`UPDATE users SET name = ?, password_hash = ?, display_name = ?, avatar_emoji = ? WHERE id = ?`,
+			seed.name, seed.hash, seed.display, seed.avatar, seed.id,
 		)
 		if err != nil {
-			return fmt.Errorf("niu: seed credentials: update %q: %w", seed.name, err)
+			return fmt.Errorf("niu: seed credentials: update user id=%d: %w", seed.id, err)
 		}
 		rows, err := res.RowsAffected()
 		if err != nil {
-			return fmt.Errorf("niu: seed credentials: rows affected for %q: %w", seed.name, err)
+			return fmt.Errorf("niu: seed credentials: rows affected for user id=%d: %w", seed.id, err)
 		}
 		if rows != 1 {
-			return fmt.Errorf("niu: seed credentials: expected to update exactly 1 row for user %q, got %d — "+
-				"NIU_USER_*_NAME does not match a seeded user", seed.name, rows)
+			return fmt.Errorf("niu: seed credentials: expected to update exactly 1 row for user id=%d, got %d — "+
+				"migration 002 may not have run", seed.id, rows)
 		}
 	}
 
