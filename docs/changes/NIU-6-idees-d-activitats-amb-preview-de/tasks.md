@@ -413,7 +413,7 @@ updated: "2026-08-03"
   comptador de peticions sortints del servidor de test roman en **1**
   independentment de quants `GET` es facin a la llista. · *covers:*
   NFR-09
-- [ ] **T-28** — Afegir test E2E (Playwright) per a AC-07/AC-09/AC-10/
+- [x] **T-28** — Afegir test E2E (Playwright) per a AC-07/AC-09/AC-10/
   AC-11 (`tests/e2e/specs/ideas.spec.js`): comparació visual amb NIU-1/
   NIU-5 confirmant diferenciació clara (AC-07); navegació completa per
   Tab/Enter per afegir un enllaç i eliminar una targeta sense ratolí

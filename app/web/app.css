@@ -722,10 +722,19 @@ header.app-header .wordmark {
   margin-top: var(--space-md);
   margin-bottom: var(--space-md);
 }
+/* WCAG 2.2 AA contrast fix (found via the T-28 automated axe-core audit):
+   --color-mel (#C99A3A, 2.57:1) and --color-mel-hover (#A87D2A, 3.72:1)
+   both fall short of the 4.5:1 AA threshold for the button's 16px bold
+   white label — only --color-mel-active (#8C6721, 5.15:1) clears it.
+   Using it as the button's resting state keeps the same approved hue
+   family (Stage 1.5 gate) while passing contrast; --color-mel/-hover
+   remain the accent used for the nav underline and box title, where they
+   sit on the page background, not underneath white text. brightness()
+   darkens further for :hover/:active without inventing a new token. */
 .add-idea-btn,
-#add-idea-btn { background: var(--color-mel); }
-#add-idea-btn:hover { background: var(--color-mel-hover); }
-#add-idea-btn:active { background: var(--color-mel-active); }
+#add-idea-btn { background: var(--color-mel-active); }
+#add-idea-btn:hover { filter: brightness(0.9); }
+#add-idea-btn:active { filter: brightness(0.8); }
 
 .ideas-grid {
   list-style: none;
