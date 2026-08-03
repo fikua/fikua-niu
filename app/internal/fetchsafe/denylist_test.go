@@ -39,3 +39,28 @@ func TestIsDeniedHost_AllowsUnrelatedHosts(t *testing.T) {
 		}
 	}
 }
+
+// F-12: the trailing-dot absolute/FQDN form ("niu.fikua.com.") is the
+// same DNS name as "niu.fikua.com" and resolves identically — it must
+// not bypass the denylist.
+func TestIsDeniedHost_TrailingDotFQDN_StillDenied(t *testing.T) {
+	cases := []string{
+		"niu.fikua.com.",
+		"NIU.FIKUA.COM.", // case-insensitive AND trailing dot
+		"traefik.",
+		"TRAEFIK.",
+		"otel-collector.",
+	}
+	for _, host := range cases {
+		if !isDeniedHost(host) {
+			t.Errorf("isDeniedHost(%q) = false, want true (trailing-dot FQDN must not bypass the denylist)", host)
+		}
+	}
+}
+
+func TestIsDeniedHost_NIUPublicHostEnv_TrailingDotFQDN_StillDenied(t *testing.T) {
+	t.Setenv("NIU_PUBLIC_HOST", "staging.example.com")
+	if !isDeniedHost("staging.example.com.") {
+		t.Error("isDeniedHost(\"staging.example.com.\") with NIU_PUBLIC_HOST set = false, want true")
+	}
+}
