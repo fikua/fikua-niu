@@ -59,7 +59,7 @@ updated: "2026-08-03"
 
 ### Foundations
 
-- [ ] **T-01** — Escriure la migració goose
+- [x] **T-01** — Escriure la migració goose
   `app/migrations/00X_activity_ideas.sql` (número següent al de la
   migració `projects` d'NIU-5) amb el DDL exacte de `design.md` §6.2:
   taula `activity_ideas` (`id`, `url NOT NULL`, `title`, `image_url`,
@@ -70,7 +70,7 @@ updated: "2026-08-03"
   sobre `url` (EC-06, deduplicació fora d'abast). Totes les consultes
   futures sobre aquesta taula usaran paràmetres vinculats, mai
   `fmt.Sprintf` cap a SQL. · *covers:* NFR-02 (base)
-- [ ] **T-02** — Definir el domini `internal/ideas`: tipus `Idea`
+- [x] **T-02** — Definir el domini `internal/ideas`: tipus `Idea`
   (`ID`, `URL`, `Title *string`, `ImageURL *string`, `Description
   *string`, `PreviewStatus`, `AddedBy items.User`, `CreatedAt`),
   interfícies `Repository` (`Create`, `Get`, `List`, `UpdatePreview`,
