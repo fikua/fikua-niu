@@ -372,8 +372,8 @@ updated: "2026-08-02"
 
 ### Closing (universal — all changes)
 
-- [ ] **C-01** — Append changelog entry (`docs.changelog` from manifest)
-- [ ] **C-02** — Transition backlog item to `Human Review` via the adapter
+- [x] **C-01** — Append changelog entry (`docs.changelog` from manifest)
+- [x] **C-02** — Transition backlog item to `Human Review` via the adapter
 - [ ] **C-03** — Propose semver bump (ASK USER — never apply unattended)
 
 ## 2. AC ↔ tasks traceability matrix
