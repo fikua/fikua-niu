@@ -4,6 +4,7 @@ import (
 	"time"
 
 	"niu/internal/items"
+	"niu/internal/projects"
 )
 
 // userDTO is the response shape for an embedded user reference
@@ -50,6 +51,45 @@ func toItemDTOs(list []items.Item) []itemDTO {
 	out := make([]itemDTO, 0, len(list))
 	for _, it := range list {
 		out = append(out, toItemDTO(it))
+	}
+	return out
+}
+
+// projectDTO is the wire shape for a Project (design.md §6.1). budget and
+// target_date are null when not informed (AC-14/AC-15); last_updated_by
+// is always non-nil, unlike itemDTO's moved_by (design.md §6.1 note: it
+// is assigned equal to added_by at creation, so the frontend never needs
+// the "has it ever moved" conditional that items.MovedBy requires).
+type projectDTO struct {
+	ID            int64     `json:"id"`
+	Name          string    `json:"name"`
+	State         string    `json:"state"`
+	Budget        *string   `json:"budget"`
+	TargetDate    *string   `json:"target_date"`
+	AddedBy       *userDTO  `json:"added_by"`
+	LastUpdatedBy *userDTO  `json:"last_updated_by"`
+	CreatedAt     time.Time `json:"created_at"`
+	UpdatedAt     time.Time `json:"updated_at"`
+}
+
+func toProjectDTO(p projects.Project) projectDTO {
+	return projectDTO{
+		ID:            p.ID,
+		Name:          p.Name,
+		State:         string(p.State),
+		Budget:        p.Budget,
+		TargetDate:    p.TargetDate,
+		AddedBy:       toUserDTO(p.AddedBy),
+		LastUpdatedBy: toUserDTO(p.LastUpdatedBy),
+		CreatedAt:     p.CreatedAt,
+		UpdatedAt:     p.UpdatedAt,
+	}
+}
+
+func toProjectDTOs(list []projects.Project) []projectDTO {
+	out := make([]projectDTO, 0, len(list))
+	for _, p := range list {
+		out = append(out, toProjectDTO(p))
 	}
 	return out
 }

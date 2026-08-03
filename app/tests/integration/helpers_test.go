@@ -22,6 +22,7 @@ import (
 	"niu/internal/auth"
 	"niu/internal/httpapi"
 	"niu/internal/items"
+	"niu/internal/projects"
 	"niu/internal/store"
 )
 
@@ -63,10 +64,12 @@ func newTestServer(t *testing.T, userID int64) *testServer {
 
 	repo := store.NewItemsRepository(st.DB)
 	svc := items.NewService(repo, repo, repo)
+	projectsRepo := store.NewProjectsRepository(st.DB)
+	projectsSvc := projects.NewService(projectsRepo, projectsRepo)
 	authenticator := auth.StubAuthenticator{UserID: userID}
 
 	var emptyFS fs.FS = fstest.MapFS{}
-	router := httpapi.NewRouter(svc, st, authenticator, emptyFS, true)
+	router := httpapi.NewRouter(svc, projectsSvc, st, authenticator, emptyFS, true)
 	srv := httptest.NewServer(router)
 	t.Cleanup(srv.Close)
 
@@ -117,6 +120,8 @@ func newAuthTestServer(t *testing.T) *authTestServer {
 
 	repo := store.NewItemsRepository(st.DB)
 	svc := items.NewService(repo, repo, repo)
+	projectsRepo := store.NewProjectsRepository(st.DB)
+	projectsSvc := projects.NewService(projectsRepo, projectsRepo)
 
 	authenticator, err := auth.NewPasswordAuthenticator(st.DB, sessionSecret)
 	if err != nil {
@@ -124,7 +129,7 @@ func newAuthTestServer(t *testing.T) *authTestServer {
 	}
 
 	var emptyFS fs.FS = fstest.MapFS{}
-	router := httpapi.NewRouter(svc, st, authenticator, emptyFS, true)
+	router := httpapi.NewRouter(svc, projectsSvc, st, authenticator, emptyFS, true)
 	srv := httptest.NewServer(router)
 	t.Cleanup(srv.Close)
 

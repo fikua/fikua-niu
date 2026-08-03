@@ -13,6 +13,7 @@ import (
 	"niu/internal/auth"
 	"niu/internal/httpapi"
 	"niu/internal/items"
+	"niu/internal/projects"
 	"niu/internal/store"
 )
 
@@ -39,8 +40,10 @@ func newTwoUserServers(t *testing.T) *twoUserServers {
 
 	repoA := store.NewItemsRepository(stA.DB)
 	svcA := items.NewService(repoA, repoA, repoA)
+	projectsRepoA := store.NewProjectsRepository(stA.DB)
+	projectsSvcA := projects.NewService(projectsRepoA, projectsRepoA)
 	var emptyFS = fstest.MapFS{}
-	routerA := httpapi.NewRouter(svcA, stA, auth.StubAuthenticator{UserID: seedUserAID}, emptyFS, true)
+	routerA := httpapi.NewRouter(svcA, projectsSvcA, stA, auth.StubAuthenticator{UserID: seedUserAID}, emptyFS, true)
 	srvA := httptest.NewServer(routerA)
 	t.Cleanup(srvA.Close)
 
@@ -55,7 +58,9 @@ func newTwoUserServers(t *testing.T) *twoUserServers {
 
 	repoB := store.NewItemsRepository(stB.DB)
 	svcB := items.NewService(repoB, repoB, repoB)
-	routerB := httpapi.NewRouter(svcB, stB, auth.StubAuthenticator{UserID: seedUserBID}, emptyFS, true)
+	projectsRepoB := store.NewProjectsRepository(stB.DB)
+	projectsSvcB := projects.NewService(projectsRepoB, projectsRepoB)
+	routerB := httpapi.NewRouter(svcB, projectsSvcB, stB, auth.StubAuthenticator{UserID: seedUserBID}, emptyFS, true)
 	srvB := httptest.NewServer(routerB)
 	t.Cleanup(srvB.Close)
 

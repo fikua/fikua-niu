@@ -188,7 +188,7 @@ updated: "2026-08-02"
   nou). Implementar `Create`, `Get`, `List`, `UpdateState`, `Delete`,
   `ExistsByNormalizedName` seguint exactament els patrons de
   `store.ItemsRepository`. · *covers:* AC-02, AC-03, AC-09, EC-12
-- [ ] **T-10** — Implementar handlers `GET/POST /api/v1/projects` i
+- [x] **T-10** — Implementar handlers `GET/POST /api/v1/projects` i
   `PATCH/DELETE /api/v1/projects/{id}` a nou fitxer
   `internal/httpapi/projects_handlers.go`: deserialitzar/serialitzar
   JSON, delegar a `projects.Service`, mapar `ErrDuplicate`→`409
@@ -196,12 +196,12 @@ updated: "2026-08-02"
   validació→`400 validation_failed`, envelope d'error uniforme
   (`design.md` §6.1, reutilitza `apiError` existent). · *covers:* AC-05,
   EC-13 (base idempotència `DELETE`)
-- [ ] **T-11** — Estendre `internal/httpapi/dto.go` amb `projectDTO`
+- [x] **T-11** — Estendre `internal/httpapi/dto.go` amb `projectDTO`
   (mapeig `Project`→JSON de resposta amb la forma exacta de `design.md`
   §6.1: `id`, `name`, `state`, `budget`, `target_date`, `added_by`,
   `last_updated_by` sempre no-nul, `created_at`, `updated_at`). ·
   *covers:* AC-04
-- [ ] **T-12** — **Modificar `router.go`** (canvi quirúrgic, no
+- [x] **T-12** — **Modificar `router.go`** (canvi quirúrgic, no
   reescriptura): registrar el nou grup de rutes `/api/v1/projects`
   dins del `r.Route("/api/v1", ...)` ja existent, reutilitzant
   `WithCurrentUser` (ja muntat al grup) i
@@ -210,7 +210,7 @@ updated: "2026-08-02"
   crida `Add`/`ChangeState`/`Delete`. **`items_handlers.go`,
   `auth_handlers.go` i `csrf.go` no es toquen.** · *covers:* EC-10,
   EC-11, NFR-04, NFR-05
-- [ ] **T-13** — Afegir a `cmd/niu/main.go` el wiring de
+- [x] **T-13** — Afegir a `cmd/niu/main.go` el wiring de
   `projects.Service` + `store.ProjectsRepository`, cablejat amb el
   mateix `*Store`/`config`/`authenticator` ja construïts — cap canvi a
   l'autenticador ni al cablejat existent d'`items`. Confirmar (sense
