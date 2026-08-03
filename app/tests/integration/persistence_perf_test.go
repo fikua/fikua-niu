@@ -111,9 +111,10 @@ func TestListItems_P95Latency_With500Items(t *testing.T) {
 	svc := items.NewService(repo, repo, repo)
 	projectsRepo := store.NewProjectsRepository(st.DB)
 	projectsSvc := projects.NewService(projectsRepo, projectsRepo)
+	ideasSvc := newIdeasService(t, st)
 	authenticator := auth.StubAuthenticator{UserID: seedUserAID}
 	var emptyFS = fstest.MapFS{}
-	router := httpapi.NewRouter(svc, projectsSvc, st, authenticator, emptyFS, true)
+	router := httpapi.NewRouter(svc, projectsSvc, ideasSvc, st, authenticator, emptyFS, true)
 	testSrv := httptest.NewServer(router)
 	defer testSrv.Close()
 

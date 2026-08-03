@@ -172,20 +172,20 @@ updated: "2026-08-03"
 
 ### Implementation — `internal/ideas` (servei + repositori)
 
-- [ ] **T-05** — Implementar `ideas.Service.Add(ctx, userID, rawURL)`:
+- [x] **T-05** — Implementar `ideas.Service.Add(ctx, userID, rawURL)`:
   validar format sintàctic de URL i rebutjar buit/només-espais
   (EC-10); validar **només l'esquema** (`http`/`https`, NFR-05/EC-01,
   reutilitzant la mateixa comprovació barata que T-03a exposa, sense
   cap petició de xarxa encara). Si l'esquema no és vàlid, retornar
   `ErrSchemeRejected` sense crear cap fila. · *covers:* AC-01 (base),
   EC-01, EC-10
-- [ ] **T-06** — Completar `ideas.Service.Add`: si el format és vàlid,
+- [x] **T-06** — Completar `ideas.Service.Add`: si el format és vàlid,
   `Repository.Create` insereix la fila amb `preview_status='pending'`,
   camps de previsualització `NULL`; escriure event `idea_added`;
   retornar la idea `pending` immediatament (ADR-03 — la resposta
   `201` no espera el scraping). · *covers:* AC-01, AC-02 (base creació
   immediata)
-- [ ] **T-07** — Implementar el worker pool acotat de scraping (ADR-03
+- [x] **T-07** — Implementar el worker pool acotat de scraping (ADR-03
   esmenat F-05): un semàfor amb buffer de capacitat configurable
   (interval 4–8, vegeu **T-07a** per al valor concret), alimentat per
   `Service.Add` després d'inserir la fila `pending`; cada worker crida
@@ -196,7 +196,7 @@ updated: "2026-08-03"
   final (`ready`/`partial`/`failed`); **mai reintent automàtic**
   (fora d'abast, `requirements.md` §7). · *covers:* AC-01, AC-02,
   AC-03
-- [ ] **T-07a** — **Confirmar i documentar el valor exacte de
+- [x] **T-07a** — **Confirmar i documentar el valor exacte de
   concurrència del worker pool dins del rang 4–8 fixat per ADR-03/R-08.**
   Triar un valor concret (p. ex. `6`) segons el consum de memòria
   observat per scrape en curs (~2 MiB retinguts per worker actiu, límit
@@ -207,19 +207,19 @@ updated: "2026-08-03"
   contenidor"). **No bloquejant per a `/audit`** (design.md §9), però
   ha de quedar reflectit al codi abans de tancar aquest ítem. · *covers:*
   NFR-07 (base — límit de concurrència/memòria)
-- [ ] **T-08** — Cablejar a `main.go` un `context.Background()` propi
+- [x] **T-08** — Cablejar a `main.go` un `context.Background()` propi
   per al worker pool (independent del context de cada petició HTTP) i
   assegurar un tancament ordenat del pool a l'aturada de l'app (ADR-03
   — el pool sobreviu la petició original que l'ha encuat). · *covers:*
   AC-06 (base — resolució en segon pla visible per sondeig)
-- [ ] **T-09** — Implementar `ideas.Service.Delete(ctx, userID, id)`:
+- [x] **T-09** — Implementar `ideas.Service.Delete(ctx, userID, id)`:
   `DELETE FROM activity_ideas WHERE id = ?` idempotent (`existed
   bool`, mateix patró que `items.Delete`/`projects.Delete`); escriure
   event `idea_deleted` només quan la fila existia; confirmar que un
   `UPDATE` de resolució de scraping en curs sobre un `id` ja eliminat
   no troba files i s'ignora silenciosament (Flux 3, sense cancel·lació
   explícita). · *covers:* AC-05
-- [ ] **T-10** — Estendre `internal/store` amb `IdeasRepository`,
+- [x] **T-10** — Estendre `internal/store` amb `IdeasRepository`,
   implementant `ideas.Repository` i `ideas.EventSink` (delegant
   `Record` a la taula `events` ja existent, cap columna ni tipus nou).
   Implementar `Create` (insereix `pending`), `Get`, `List` (consulta
@@ -229,7 +229,7 @@ updated: "2026-08-03"
 
 ### Implementation — HTTP layer
 
-- [ ] **T-11** — Implementar handlers `GET/POST /api/v1/ideas` i
+- [x] **T-11** — Implementar handlers `GET/POST /api/v1/ideas` i
   `DELETE /api/v1/ideas/{id}` a nou fitxer
   `internal/httpapi/ideas_handlers.go`: deserialitzar/serialitzar JSON,
   delegar a `ideas.Service`, mapar `ErrSchemeRejected`/error de format
@@ -238,12 +238,12 @@ updated: "2026-08-03"
   prohibit" — coherent amb NFR-06 "missatge clar sense revelar detalls
   interns"). `DELETE` respon sempre `204` (EC-15, idempotent). ·
   *covers:* AC-04
-- [ ] **T-12** — Estendre `internal/httpapi/dto.go` amb `ideaDTO`
+- [x] **T-12** — Estendre `internal/httpapi/dto.go` amb `ideaDTO`
   (mapeig `Idea`→JSON amb la forma exacta de `design.md` §6.1: `id`,
   `url` sempre present, `title`/`image_url`/`description` (`null` si
   `pending`/`failed`, o el camp concret si falta sota `partial`),
   `preview_status`, `added_by`, `created_at`). · *covers:* AC-01, AC-03
-- [ ] **T-13** — **Modificar `router.go`** (canvi quirúrgic, no
+- [x] **T-13** — **Modificar `router.go`** (canvi quirúrgic, no
   reescriptura): registrar el nou grup de rutes `/api/v1/ideas` dins
   del `r.Route("/api/v1", ...)` ja existent, reutilitzant
   `WithCurrentUser` (ja muntat al grup) i `RequireCSRF` per a
@@ -251,7 +251,7 @@ updated: "2026-08-03"
   `Add`/`Delete`. **`items_handlers.go`, `projects_handlers.go`,
   `auth_handlers.go`, `csrf.go` no es toquen.** · *covers:* AC-05 (base
   eliminar via API)
-- [ ] **T-14** — Afegir a `cmd/niu/main.go` el wiring de
+- [x] **T-14** — Afegir a `cmd/niu/main.go` el wiring de
   `ideas.Service` + `store.IdeasRepository` + el client HTTP dedicat de
   `fetchsafe` (T-03h) + el worker pool acotat (T-07/T-08), cablejat amb
   el mateix `*Store`/`config`/`authenticator` ja construïts — cap canvi

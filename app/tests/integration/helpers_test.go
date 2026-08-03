@@ -5,6 +5,7 @@ package integration
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"io"
 	"io/fs"
@@ -20,7 +21,9 @@ import (
 
 	niu "niu"
 	"niu/internal/auth"
+	"niu/internal/fetchsafe"
 	"niu/internal/httpapi"
+	"niu/internal/ideas"
 	"niu/internal/items"
 	"niu/internal/projects"
 	"niu/internal/store"
@@ -50,6 +53,30 @@ type testServer struct {
 	Store *store.Store
 }
 
+// newIdeasService wires a real ideas.Service against st, using the real
+// fetchsafe.FetchPreview + a bounded worker pool — the same wiring as
+// cmd/niu/main.go's production path, so integration tests exercise the
+// genuine SSRF mitigation, not a stub. Callers that need to intercept the
+// fetch step for a specific unit-level scenario use ideas.NewService
+// directly instead (see internal/ideas/service_test.go).
+func newIdeasService(t *testing.T, st *store.Store) *ideas.Service {
+	t.Helper()
+	ideasRepo := store.NewIdeasRepository(st.DB)
+	client := fetchsafe.NewClient()
+	pool := ideas.NewWorkerPool(context.Background())
+	t.Cleanup(pool.Close)
+	fetch := func(ctx context.Context, rawURL string) (ideas.Preview, error) {
+		preview, err := fetchsafe.FetchPreview(ctx, client, rawURL)
+		return ideas.Preview{
+			Title:       preview.Title,
+			ImageURL:    preview.ImageURL,
+			Description: preview.Description,
+			Partial:     preview.Partial,
+		}, err
+	}
+	return ideas.NewService(ideasRepo, ideasRepo, fetch, pool)
+}
+
 func newTestServer(t *testing.T, userID int64) *testServer {
 	t.Helper()
 
@@ -66,10 +93,11 @@ func newTestServer(t *testing.T, userID int64) *testServer {
 	svc := items.NewService(repo, repo, repo)
 	projectsRepo := store.NewProjectsRepository(st.DB)
 	projectsSvc := projects.NewService(projectsRepo, projectsRepo)
+	ideasSvc := newIdeasService(t, st)
 	authenticator := auth.StubAuthenticator{UserID: userID}
 
 	var emptyFS fs.FS = fstest.MapFS{}
-	router := httpapi.NewRouter(svc, projectsSvc, st, authenticator, emptyFS, true)
+	router := httpapi.NewRouter(svc, projectsSvc, ideasSvc, st, authenticator, emptyFS, true)
 	srv := httptest.NewServer(router)
 	t.Cleanup(srv.Close)
 
@@ -122,6 +150,7 @@ func newAuthTestServer(t *testing.T) *authTestServer {
 	svc := items.NewService(repo, repo, repo)
 	projectsRepo := store.NewProjectsRepository(st.DB)
 	projectsSvc := projects.NewService(projectsRepo, projectsRepo)
+	ideasSvc := newIdeasService(t, st)
 
 	authenticator, err := auth.NewPasswordAuthenticator(st.DB, sessionSecret)
 	if err != nil {
@@ -129,7 +158,7 @@ func newAuthTestServer(t *testing.T) *authTestServer {
 	}
 
 	var emptyFS fs.FS = fstest.MapFS{}
-	router := httpapi.NewRouter(svc, projectsSvc, st, authenticator, emptyFS, true)
+	router := httpapi.NewRouter(svc, projectsSvc, ideasSvc, st, authenticator, emptyFS, true)
 	srv := httptest.NewServer(router)
 	t.Cleanup(srv.Close)
 

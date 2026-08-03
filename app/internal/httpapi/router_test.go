@@ -11,16 +11,24 @@ import (
 	"github.com/go-chi/chi/v5"
 
 	"niu/internal/auth"
+	"niu/internal/ideas"
 	"niu/internal/items"
 	"niu/internal/projects"
 )
+
+// noopIdeasFetch never actually calls fetchsafe — used by router-level
+// tests that only assert on routing/GET-mutation behaviour, never on
+// scrape outcomes.
+func noopIdeasFetch(_ context.Context, _ string) (ideas.Preview, error) {
+	return ideas.Preview{}, nil
+}
 
 // TestNoMutatingGETRoutes introspects the chi route table (EC-08/NFR-04)
 // and asserts that no GET route also has a POST/PATCH/PUT/DELETE handler
 // registered on the exact same pattern — i.e. GET is never wired to a
 // handler shared with a mutating method.
 func TestNoMutatingGETRoutes(t *testing.T) {
-	router := NewRouter(nil, nil, fakeHealthChecker{}, fakeAuthenticator{}, fstest.MapFS{}, true)
+	router := NewRouter(nil, nil, nil, fakeHealthChecker{}, fakeAuthenticator{}, fstest.MapFS{}, true)
 
 	chiRouter, ok := router.(chi.Router)
 	if !ok {
@@ -50,6 +58,7 @@ func TestNoMutatingGETRoutes(t *testing.T) {
 		"/api/v1/me":        true,
 		"/api/v1/items/":    true,
 		"/api/v1/projects/": true,
+		"/api/v1/ideas/":    true,
 	}
 	for route := range getRoutes {
 		if !wantGET[route] {
@@ -74,7 +83,11 @@ func TestGETRequestsDoNotMutateState(t *testing.T) {
 	svc := items.NewService(repo, &spySink{}, &spyUsers{})
 	projectsRepo := &spyProjectsRepo{}
 	projectsSvc := projects.NewService(projectsRepo, &spySink{})
-	router := NewRouter(svc, projectsSvc, fakeHealthChecker{}, fakeAuthenticator{}, fstest.MapFS{}, true)
+	ideasRepo := &spyIdeasRepo{}
+	ideasPool := ideas.NewWorkerPool(context.Background())
+	t.Cleanup(ideasPool.Close)
+	ideasSvc := ideas.NewService(ideasRepo, &spySink{}, noopIdeasFetch, ideasPool)
+	router := NewRouter(svc, projectsSvc, ideasSvc, fakeHealthChecker{}, fakeAuthenticator{}, fstest.MapFS{}, true)
 
 	chiRouter, ok := router.(chi.Router)
 	if !ok {
@@ -111,6 +124,63 @@ func TestGETRequestsDoNotMutateState(t *testing.T) {
 		t.Errorf("GET requests triggered %d mutating projects repository call(s) (%v); "+
 			"no GET may create, change state or delete (EC-10/NFR-04)",
 			len(projectsRepo.mutations), projectsRepo.mutations)
+	}
+	if len(ideasRepo.mutations) != 0 {
+		t.Errorf("GET requests triggered %d mutating ideas repository call(s) (%v); "+
+			"no GET may create or delete (EC-13/NFR-03)",
+			len(ideasRepo.mutations), ideasRepo.mutations)
+	}
+}
+
+// TestSPAFallback exercises the client-side-route allowlist added
+// alongside the SPA merge (see spa-conversion-adhoc-review.md F-01): only
+// paths in spaRoutes fall back to index.html; everything else, including a
+// plausible-looking but nonexistent asset path, must still 404 cleanly
+// rather than silently returning 200 + the shell (which would mask a real
+// bug, e.g. a typo'd import path, as a soft navigation).
+func TestSPAFallback(t *testing.T) {
+	webFS := fstest.MapFS{
+		"index.html":      {Data: []byte("<html>shell</html>")},
+		"app.css":         {Data: []byte("body{}")},
+		"js/main.js":      {Data: []byte("export {}")},
+		"js/router.js":    {Data: []byte("export {}")},
+		"manifest.json":   {Data: []byte("{}")},
+		"assets/icon.png": {Data: []byte("fake-png")},
+	}
+	router := NewRouter(nil, nil, nil, fakeHealthChecker{}, fakeAuthenticator{}, webFS, true)
+
+	cases := []struct {
+		name       string
+		path       string
+		wantStatus int
+		wantShell  bool // body should be index.html's content
+	}{
+		{"root serves shell", "/", http.StatusOK, true},
+		{"known client route serves shell in place", "/projects", http.StatusOK, true},
+		{"ideas client route serves shell in place", "/ideas", http.StatusOK, true},
+		{"real asset serves as-is, not the shell", "/app.css", http.StatusOK, false},
+		{"real nested asset serves as-is", "/js/main.js", http.StatusOK, false},
+		{"unknown route still 404s, not the shell", "/does-not-exist", http.StatusNotFound, false},
+		{"typo'd asset path still 404s, not the shell", "/js/shoping-view.js", http.StatusNotFound, false},
+		{"api-shaped nonexistent path 404s, not the shell", "/api/v1/itms", http.StatusNotFound, false},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			req := httptest.NewRequest(http.MethodGet, tc.path, nil)
+			rec := httptest.NewRecorder()
+			router.ServeHTTP(rec, req)
+
+			if rec.Code != tc.wantStatus {
+				t.Fatalf("GET %s: got status %d, want %d (body: %s)", tc.path, rec.Code, tc.wantStatus, rec.Body.String())
+			}
+			if tc.wantShell && rec.Body.String() != "<html>shell</html>" {
+				t.Errorf("GET %s: expected shell content, got %q", tc.path, rec.Body.String())
+			}
+			if !tc.wantShell && tc.wantStatus == http.StatusOK && rec.Body.String() == "<html>shell</html>" {
+				t.Errorf("GET %s: unexpectedly got the SPA shell instead of the real asset", tc.path)
+			}
+		})
 	}
 }
 
@@ -180,6 +250,34 @@ func (r *spyProjectsRepo) List(_ context.Context) ([]projects.Project, error) { 
 func (r *spyProjectsRepo) ExistsByNormalizedName(_ context.Context, _ string) (bool, error) {
 	return false, nil
 }
+
+// spyIdeasRepo mirrors spyRepo/spyProjectsRepo for the ideas domain
+// (EC-13/NFR-03): records every mutating call so a test can assert none
+// happened.
+type spyIdeasRepo struct {
+	mutations []string
+}
+
+func (r *spyIdeasRepo) Create(_ context.Context, _ int64, _ string) (ideas.Idea, error) {
+	r.mutations = append(r.mutations, "Create")
+	return ideas.Idea{}, nil
+}
+
+func (r *spyIdeasRepo) UpdatePreview(_ context.Context, _ int64, _, _, _ *string, _ ideas.PreviewStatus) error {
+	r.mutations = append(r.mutations, "UpdatePreview")
+	return nil
+}
+
+func (r *spyIdeasRepo) Delete(_ context.Context, _ int64) (bool, error) {
+	r.mutations = append(r.mutations, "Delete")
+	return false, nil
+}
+
+func (r *spyIdeasRepo) Get(_ context.Context, _ int64) (ideas.Idea, error) {
+	return ideas.Idea{}, ideas.ErrNotFound{}
+}
+
+func (r *spyIdeasRepo) List(_ context.Context) ([]ideas.Idea, error) { return nil, nil }
 
 type spySink struct{}
 

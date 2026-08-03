@@ -3,6 +3,7 @@ package httpapi
 import (
 	"time"
 
+	"niu/internal/ideas"
 	"niu/internal/items"
 	"niu/internal/projects"
 )
@@ -90,6 +91,43 @@ func toProjectDTOs(list []projects.Project) []projectDTO {
 	out := make([]projectDTO, 0, len(list))
 	for _, p := range list {
 		out = append(out, toProjectDTO(p))
+	}
+	return out
+}
+
+// ideaDTO is the wire shape for an Idea (design.md §6.1). url is always
+// present regardless of preview_status (AC-02: the link is the only way
+// to identify a fallback idea); title/image_url/description are null
+// when preview_status is pending/failed, or when the specific field was
+// not recovered under partial (AC-03).
+type ideaDTO struct {
+	ID            int64     `json:"id"`
+	URL           string    `json:"url"`
+	Title         *string   `json:"title"`
+	ImageURL      *string   `json:"image_url"`
+	Description   *string   `json:"description"`
+	PreviewStatus string    `json:"preview_status"`
+	AddedBy       *userDTO  `json:"added_by"`
+	CreatedAt     time.Time `json:"created_at"`
+}
+
+func toIdeaDTO(idea ideas.Idea) ideaDTO {
+	return ideaDTO{
+		ID:            idea.ID,
+		URL:           idea.URL,
+		Title:         idea.Title,
+		ImageURL:      idea.ImageURL,
+		Description:   idea.Description,
+		PreviewStatus: string(idea.PreviewStatus),
+		AddedBy:       toUserDTO(idea.AddedBy),
+		CreatedAt:     idea.CreatedAt,
+	}
+}
+
+func toIdeaDTOs(list []ideas.Idea) []ideaDTO {
+	out := make([]ideaDTO, 0, len(list))
+	for _, idea := range list {
+		out = append(out, toIdeaDTO(idea))
 	}
 	return out
 }

@@ -42,8 +42,9 @@ func newTwoUserServers(t *testing.T) *twoUserServers {
 	svcA := items.NewService(repoA, repoA, repoA)
 	projectsRepoA := store.NewProjectsRepository(stA.DB)
 	projectsSvcA := projects.NewService(projectsRepoA, projectsRepoA)
+	ideasSvcA := newIdeasService(t, stA)
 	var emptyFS = fstest.MapFS{}
-	routerA := httpapi.NewRouter(svcA, projectsSvcA, stA, auth.StubAuthenticator{UserID: seedUserAID}, emptyFS, true)
+	routerA := httpapi.NewRouter(svcA, projectsSvcA, ideasSvcA, stA, auth.StubAuthenticator{UserID: seedUserAID}, emptyFS, true)
 	srvA := httptest.NewServer(routerA)
 	t.Cleanup(srvA.Close)
 
@@ -60,7 +61,8 @@ func newTwoUserServers(t *testing.T) *twoUserServers {
 	svcB := items.NewService(repoB, repoB, repoB)
 	projectsRepoB := store.NewProjectsRepository(stB.DB)
 	projectsSvcB := projects.NewService(projectsRepoB, projectsRepoB)
-	routerB := httpapi.NewRouter(svcB, projectsSvcB, stB, auth.StubAuthenticator{UserID: seedUserBID}, emptyFS, true)
+	ideasSvcB := newIdeasService(t, stB)
+	routerB := httpapi.NewRouter(svcB, projectsSvcB, ideasSvcB, stB, auth.StubAuthenticator{UserID: seedUserBID}, emptyFS, true)
 	srvB := httptest.NewServer(routerB)
 	t.Cleanup(srvB.Close)
 
