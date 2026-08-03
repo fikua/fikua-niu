@@ -92,7 +92,7 @@ function renderDeleteButton(idea, handlers) {
   const del = document.createElement('button');
   del.type = 'button';
   del.className = 'delete-btn';
-  del.setAttribute('aria-label', `Eliminar idea ${domainOf(idea.url)}`);
+  del.setAttribute('aria-label', `Eliminar la idea «${idea.title || domainOf(idea.url)}»`);
   del.textContent = '🗑';
   del.addEventListener('click', (e) => {
     e.stopPropagation();
@@ -111,6 +111,8 @@ function newCardContainer(idea) {
   const card = document.createElement('div');
   card.className = 'idea-card';
   card.dataset.id = String(idea.id);
+  card.setAttribute('role', 'group');
+  card.setAttribute('aria-label', idea.title || domainOf(idea.url));
 
   li.appendChild(card);
   return { li, card };

@@ -69,7 +69,7 @@ function wireAddForm() {
   async function submitNewIdea() {
     const raw = urlInput.value;
     if (raw.trim().length === 0) {
-      showError('Escriu un enllaç abans d’afegir.');
+      showError('Enganxa un enllaç abans de desar.');
       urlInput.focus();
       return;
     }

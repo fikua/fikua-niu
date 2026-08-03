@@ -56,7 +56,7 @@ func validateURL(rawURL string) (string, error) {
 	if trimmed == "" {
 		return "", ErrValidation{
 			Code:    ValidationEmpty,
-			Message: "Escriu un enllaç abans d'afegir.",
+			Message: "Enganxa un enllaç abans de desar.",
 		}
 	}
 
