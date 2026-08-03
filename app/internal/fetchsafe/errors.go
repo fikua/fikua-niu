@@ -20,9 +20,20 @@ var (
 	// hard deadline (T-03f, NFR-07/EC-08).
 	ErrTimeout = errors.New("fetchsafe: fetch timed out")
 
-	// ErrResponseTooLarge is returned when the response body exceeds the
-	// streaming size limit before a usable <head> could be read (T-03g,
-	// NFR-07/EC-03).
+	// ErrResponseTooLarge is declared for an oversized-response case that
+	// is, in current production code, handled silently rather than by
+	// returning this error (F-05, review.md): the io.LimitReader (T-03g)
+	// truncates the stream before the html tokenizer, which then
+	// surfaces the cutoff as an ordinary html.ErrorToken — parseOpenGraph
+	// returns whatever partial Preview it already recovered with err ==
+	// nil, exactly like any other EC-05 malformed/absent-tag case
+	// (design.md §5: "treated as fallback, not a fatal error"). This
+	// sentinel's only live reference is a test double
+	// (tests/integration/ideas_test_server_test.go) simulating a caller
+	// that wants to see this value — it is not currently produced by
+	// FetchPreview itself. Kept as documented API surface in case a
+	// future change instruments an explicit size check instead of
+	// relying on silent truncation.
 	ErrResponseTooLarge = errors.New("fetchsafe: response exceeded size limit")
 
 	// ErrUnsupportedContentType is returned when the response's

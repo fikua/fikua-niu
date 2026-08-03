@@ -2,8 +2,14 @@ package ideas
 
 import "fmt"
 
-// ErrNotFound is returned by Service.Get when the target id does not
-// exist. Service.Delete never returns it (idempotent, EC-15).
+// ErrNotFound is returned by Repository.Get when the target id does not
+// exist. Service exposes no Get method of its own — today the only
+// caller of Repository.Get is IdeasRepository.Create's internal
+// re-fetch of the row it just inserted (internal/store/ideas.go), so
+// this error is not currently reachable from any HTTP handler (F-02,
+// review.md). Kept as forward-looking API surface for a future
+// Service.Get, not removed. Service.Delete never returns it — deletion
+// is idempotent by design (EC-15) and never calls Get.
 type ErrNotFound struct {
 	ID int64
 }

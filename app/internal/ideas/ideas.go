@@ -57,6 +57,10 @@ type Repository interface {
 	// returned immediately, before any scraping happens).
 	Create(ctx context.Context, userID int64, url string) (Idea, error)
 	// Get returns a single idea by ID. Returns ErrNotFound if absent.
+	// Not exposed by Service — the only caller today is
+	// IdeasRepository.Create's internal re-fetch of the row it just
+	// inserted (see internal/store/ideas.go), so ErrNotFound never
+	// reaches an HTTP handler in current usage (F-02, review.md).
 	Get(ctx context.Context, id int64) (Idea, error)
 	// List returns all ideas — a single query with a join to users for
 	// added_by (no N+1).
