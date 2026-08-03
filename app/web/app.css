@@ -629,6 +629,12 @@ header.app-header .wordmark {
   width: 100%;
 }
 .project-row:hover { background: var(--color-surface); box-shadow: var(--shadow-md); }
+/* .delete-btn is shared with ItemRow (§8.4.2) — same invisible-until-
+   hover/focus treatment (opacity + pointer-events, never visibility, for
+   the same Tab-order reason documented in render.js's NOTE), scoped here
+   to .project-row since the shared rule only targets .item-row. */
+.project-row:hover .delete-btn { opacity: 1; pointer-events: auto; }
+.project-row:focus-within .delete-btn { opacity: 1; pointer-events: auto; }
 
 .project-name { flex: 1 1 160px; font-weight: var(--type-body-strong-weight); }
 .project-budget, .project-target-date {
@@ -685,4 +691,7 @@ header.app-header .wordmark {
 @media (max-width: 767px) {
   .project-row { flex-direction: column; align-items: stretch; }
   .state-badge { min-height: var(--touch-target-min); }
+  .project-row .delete-btn { width: 44px; height: 44px; min-width: 44px; min-height: 44px; font-size: 18px; }
+  .project-row:hover .delete-btn,
+  .project-row:focus-within .delete-btn { opacity: 1; pointer-events: auto; }
 }

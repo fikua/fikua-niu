@@ -14,6 +14,7 @@
 
 import { test, expect } from '@playwright/test';
 import { uniqueName, addItem, cleanupItem } from './helpers.js';
+import { uniqueProjectName, addProject, cleanupProject } from './projects-helpers.js';
 
 // Each payload is a different injection vector, not a variation of one.
 const PAYLOADS = [
@@ -92,5 +93,31 @@ test.describe('S3a — XSS payloads render as literal text', () => {
     expect(csp).not.toContain("'unsafe-inline'");
     expect(csp).not.toContain("'unsafe-eval'");
     expect(csp).toContain("default-src 'self'");
+  });
+
+  // NIU-5/EC-08/NFR-02: same attack, same assertion, applied to the
+  // projects space's own render path (projects-render.js), a separate
+  // module from render.js.
+  test('img onerror does not execute in the projects space', async ({ page }) => {
+    const errors = [];
+    page.on('pageerror', (e) => errors.push(e.message));
+
+    await page.goto('/projects.html');
+    await page.evaluate(() => { delete window.__xss; });
+
+    const payload = '<img src=x onerror="window.__xss=1">';
+    const name = `${uniqueProjectName('xss-project')} ${payload}`;
+    await addProject(page, name);
+
+    const executed = await page.evaluate(() => window.__xss === 1);
+    expect(executed, 'projects XSS payload executed — this is a real XSS').toBe(false);
+
+    const row = page.locator('.project-row', { hasText: name }).first();
+    await expect(row.locator('img, script, svg, a')).toHaveCount(0);
+    await expect(row).toContainText(payload);
+
+    expect(errors, 'unexpected page errors').toEqual([]);
+
+    await cleanupProject(page, name);
   });
 });

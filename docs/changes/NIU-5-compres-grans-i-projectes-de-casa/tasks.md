@@ -274,7 +274,7 @@ updated: "2026-08-02"
 
 ### Verification
 
-- [ ] **T-21** — Afegir test E2E (Playwright) de diferenciació visual
+- [x] **T-21** — Afegir test E2E (Playwright) de diferenciació visual
   (AC-08): navegar a l'espai de projectes i confirmar, per comparació
   amb la llista de la compra (NIU-1), que la pestanya/entrada de
   navegació i l'accent de color (terracota vs. verd molsa) són
@@ -343,7 +343,7 @@ updated: "2026-08-02"
   "abandonat/descartat" al `CHECK` de `state` ni a l'API — l'única
   acció disponible per a un element no desitjat és `DELETE` (EC-06). ·
   *covers:* EC-05, EC-06
-- [ ] **T-30** — Afegir test E2E (Playwright) d'accessibilitat i estat
+- [x] **T-30** — Afegir test E2E (Playwright) d'accessibilitat i estat
   buit per a AC-11/AC-12/EC-14/EC-15 (`tests/e2e/specs/projects.spec.js`):
   navegació completa per Tab/Enter per afegir, canviar estat (en
   qualsevol direcció) i eliminar sense ratolí (AC-11); contingut exacte
