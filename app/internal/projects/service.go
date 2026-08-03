@@ -177,6 +177,16 @@ func isKnownState(s State) bool {
 // ChangeState moves a project to an absolute state, in any direction
 // (design.md §5 Flux 2; covers AC-02, AC-03, AC-05 base, AC-07 base,
 // AC-09, EC-05, EC-12, EC-13, NFR-01).
+//
+// The prior state used for the event's "from" field comes back from
+// repo.UpdateState itself, read inside the same BEGIN IMMEDIATE
+// transaction as the UPDATE (F-23 fix) — this method deliberately does
+// NOT call repo.Get first. A separate, non-transactional read-then-write
+// is a check-then-act race: under concurrent ChangeState calls on the
+// same id, the losing request's separately-read "previous" value can
+// already be stale by the time its own UpdateState commits, corrupting
+// the project_state_changed audit trail NFR-01 depends on (the same
+// defect class already fixed once on NIU-1/F-02 and NIU-4/F-01).
 func (s *Service) ChangeState(ctx context.Context, userID, id int64, newState State) (Project, error) {
 	if !isKnownState(newState) {
 		return Project{}, ErrValidation{
@@ -185,19 +195,14 @@ func (s *Service) ChangeState(ctx context.Context, userID, id int64, newState St
 		}
 	}
 
-	previous, err := s.repo.Get(ctx, id)
-	if err != nil {
-		return Project{}, err
-	}
-
-	project, err := s.repo.UpdateState(ctx, id, userID, newState)
+	project, previousState, err := s.repo.UpdateState(ctx, id, userID, newState)
 	if err != nil {
 		return Project{}, err
 	}
 
 	_ = s.sink.Record(ctx, userID, "project_state_changed", map[string]any{
 		"project_id": project.ID,
-		"from":       string(previous.State),
+		"from":       string(previousState),
 		"to":         string(project.State),
 	})
 

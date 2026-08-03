@@ -147,3 +147,80 @@ func TestCSRF_DeleteWithoutToken_Rejected(t *testing.T) {
 		t.Fatal("item disappeared despite missing CSRF token on DELETE")
 	}
 }
+
+// ---- F-21 — /api/v1/projects has the same RequireCSRF wiring as /items
+// (router.go:124-127) but, until now, no test exercised it. These three
+// mirror the /items CSRF tests above exactly, just against the projects
+// routes (NIU-5), per the review's suggested fix.
+
+func TestCSRF_Projects_PostWithoutToken_Rejected(t *testing.T) {
+	srv := newAuthTestServer(t)
+	login := doLogin(t, srv, testUsernameA, testPasswordA)
+	if login.StatusCode != http.StatusOK {
+		t.Fatalf("login status = %d, want 200", login.StatusCode)
+	}
+
+	res := doJSONWithCookie(t, http.MethodPost, srv.URL+"/api/v1/projects", login.SessionToken, "",
+		map[string]string{"name": "No hauria d'existir"})
+	defer res.Body.Close()
+
+	if res.StatusCode != http.StatusForbidden {
+		t.Fatalf("POST /projects without a CSRF token status = %d, want 403", res.StatusCode)
+	}
+
+	for _, p := range listProjectsAuthenticated(t, srv, login) {
+		if p.Name == "No hauria d'existir" {
+			t.Fatalf("project %q exists despite the mutation that created it being rejected", p.Name)
+		}
+	}
+}
+
+func TestCSRF_Projects_PatchWithoutToken_Rejected(t *testing.T) {
+	srv := newAuthTestServer(t)
+	login := doLogin(t, srv, testUsernameA, testPasswordA)
+	if login.StatusCode != http.StatusOK {
+		t.Fatalf("login status = %d, want 200", login.StatusCode)
+	}
+
+	created := createProjectAuthenticated(t, srv, login, "Projecte per canviar d'estat")
+
+	res := doJSONWithCookie(t, http.MethodPatch, srv.URL+"/api/v1/projects/"+strconv.FormatInt(created.ID, 10), login.SessionToken, "",
+		map[string]string{"state": "decidit"})
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusForbidden {
+		t.Fatalf("PATCH /projects without CSRF token status = %d, want 403", res.StatusCode)
+	}
+
+	// Confirm no effect: still in the original state.
+	for _, p := range listProjectsAuthenticated(t, srv, login) {
+		if p.ID == created.ID && p.State != "idea" {
+			t.Fatalf("project state changed despite missing CSRF token: %+v", p)
+		}
+	}
+}
+
+func TestCSRF_Projects_DeleteWithoutToken_Rejected(t *testing.T) {
+	srv := newAuthTestServer(t)
+	login := doLogin(t, srv, testUsernameA, testPasswordA)
+	if login.StatusCode != http.StatusOK {
+		t.Fatalf("login status = %d, want 200", login.StatusCode)
+	}
+
+	created := createProjectAuthenticated(t, srv, login, "Projecte per eliminar")
+
+	res := doJSONWithCookie(t, http.MethodDelete, srv.URL+"/api/v1/projects/"+strconv.FormatInt(created.ID, 10), login.SessionToken, "", nil)
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusForbidden {
+		t.Fatalf("DELETE /projects without CSRF token status = %d, want 403", res.StatusCode)
+	}
+
+	found := false
+	for _, p := range listProjectsAuthenticated(t, srv, login) {
+		if p.ID == created.ID {
+			found = true
+		}
+	}
+	if !found {
+		t.Fatal("project disappeared despite missing CSRF token on DELETE")
+	}
+}

@@ -77,17 +77,18 @@ func (f *fakeRepo) List(ctx context.Context) ([]Project, error) {
 	return out, nil
 }
 
-func (f *fakeRepo) UpdateState(ctx context.Context, id, userID int64, newState State) (Project, error) {
+func (f *fakeRepo) UpdateState(ctx context.Context, id, userID int64, newState State) (Project, State, error) {
 	p, ok := f.projects[id]
 	if !ok {
-		return Project{}, ErrNotFound{ID: id}
+		return Project{}, "", ErrNotFound{ID: id}
 	}
+	previousState := p.State
 	u := f.users[userID]
 	p.State = newState
 	p.LastUpdatedBy = &u
 	p.UpdatedAt = time.Now()
 	f.projects[id] = p
-	return p, nil
+	return p, previousState, nil
 }
 
 func (f *fakeRepo) Delete(ctx context.Context, id int64) (bool, error) {

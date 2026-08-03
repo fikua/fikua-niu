@@ -1,6 +1,7 @@
 package integration
 
 import (
+	"encoding/json"
 	"net/http"
 	"net/http/httptest"
 	"strconv"
@@ -248,6 +249,24 @@ func TestProjects_ConcurrentStateChange_NoErrorConverges(t *testing.T) {
 // times — a single-shot concurrency test is close to useless if the two
 // goroutines happen not to overlap (same rationale as NIU-1's
 // TestTwoUsers_ConcurrentMove_Repeated).
+//
+// F-23: beyond "no 5xx" and "converges to one of the two states", this
+// also asserts the *audit trail itself* is correct under the race — the
+// two project_state_changed events must chain validly from the project's
+// real starting state ("idea") to its two distinct requested destinations
+// ("decidit", "fet"): whichever UpdateState transaction actually committed
+// first must have read "idea" as its "from", and whichever committed
+// second must have read the first one's "to" as its own "from". Note this
+// check does NOT assume events.id order reflects transaction-commit order
+// — Service.ChangeState calls sink.Record (a separate, non-transactional
+// INSERT into events) only after UpdateState's transaction has already
+// committed, so a goroutine that wins the UpdateState commit race can
+// still lose the Record race if it is descheduled in between; the
+// invariant under test is therefore checked order-independently. Before
+// the F-23 fix, both events could independently record "from":"idea" even
+// though only one of them could have truly observed that value at its own
+// commit — this asserts that specific corruption cannot happen, regardless
+// of insertion order.
 func TestProjects_ConcurrentStateChange_Repeated(t *testing.T) {
 	const rounds = 25
 
@@ -280,6 +299,87 @@ func TestProjects_ConcurrentStateChange_Repeated(t *testing.T) {
 		if len(list) != 1 {
 			t.Fatalf("round %d: expected exactly one project, got %d", round, len(list))
 		}
+
+		assertStateChangedEventChainIsConsistent(t, srv, created.ID, round)
+	}
+}
+
+// assertStateChangedEventChainIsConsistent queries every
+// project_state_changed event for projectID and asserts the from/to values
+// form a valid 2-step chain starting at "idea", regardless of the order
+// the two rows were inserted in (see the note on TestProjects_
+// ConcurrentStateChange_Repeated for why events.id order is NOT a proxy
+// for UpdateState transaction-commit order). The two requests in this test
+// always target fixed, distinct destinations ("decidit" and "fet"), so a
+// valid chain looks like: one event has from="idea" (the transaction that
+// truly committed first), and the other has from=<the first event's to>
+// (the transaction that committed second, which correctly observed what
+// the first one left behind). A wrong "from" under the race (F-23) breaks
+// this chain even though the HTTP responses and final state look fine.
+func assertStateChangedEventChainIsConsistent(t *testing.T, srv *testServer, projectID int64, round int) {
+	t.Helper()
+
+	rows, err := srv.Store.DB.Query(
+		`SELECT payload FROM events
+		 WHERE kind = 'project_state_changed'
+		   AND json_extract(payload, '$.project_id') = ?`,
+		projectID,
+	)
+	if err != nil {
+		t.Fatalf("round %d: query project_state_changed events: %v", round, err)
+	}
+	defer rows.Close()
+
+	type fromTo struct{ From, To string }
+	var chain []fromTo
+	for rows.Next() {
+		var payload string
+		if err := rows.Scan(&payload); err != nil {
+			t.Fatalf("round %d: scan event payload: %v", round, err)
+		}
+		var decoded struct {
+			From string `json:"from"`
+			To   string `json:"to"`
+		}
+		if err := json.Unmarshal([]byte(payload), &decoded); err != nil {
+			t.Fatalf("round %d: unmarshal event payload %q: %v", round, payload, err)
+		}
+		chain = append(chain, fromTo{From: decoded.From, To: decoded.To})
+	}
+	if err := rows.Err(); err != nil {
+		t.Fatalf("round %d: iterate event rows: %v", round, err)
+	}
+
+	if len(chain) != 2 {
+		t.Fatalf("round %d: expected exactly 2 project_state_changed events, got %d (%+v)", round, len(chain), chain)
+	}
+
+	// Identify which event committed first: it is the one whose "to" does
+	// NOT equal the other event's "from" (the second-committing event's
+	// "from" must equal the first one's "to" under a correct fix).
+	a, b := chain[0], chain[1]
+	var first, second fromTo
+	switch {
+	case b.From == a.To:
+		first, second = a, b
+	case a.From == b.To:
+		first, second = b, a
+	default:
+		t.Fatalf("round %d: neither event's from matches the other's to — chain does not connect at all (chain: %+v)", round, chain)
+	}
+
+	if first.From != "idea" {
+		t.Fatalf("round %d: first-committed event has from=%q, want %q — the audit trail chain is broken, exactly the corruption F-23 guards against (chain: %+v)", round, first.From, "idea", chain)
+	}
+	if second.From != first.To {
+		// Unreachable given the switch above, kept as an explicit
+		// invariant statement for readability.
+		t.Fatalf("round %d: second-committed event has from=%q, want %q (chain: %+v)", round, second.From, first.To, chain)
+	}
+
+	gotDestinations := map[string]bool{first.To: true, second.To: true}
+	if !gotDestinations["decidit"] || !gotDestinations["fet"] {
+		t.Fatalf("round %d: expected the two events' destinations to be exactly {decidit, fet}, got %+v", round, chain)
 	}
 }
 

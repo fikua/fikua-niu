@@ -161,9 +161,9 @@ func (r *spyProjectsRepo) Create(_ context.Context, _ int64, _, _ string, _, _ *
 	return projects.Project{}, nil
 }
 
-func (r *spyProjectsRepo) UpdateState(_ context.Context, _, _ int64, _ projects.State) (projects.Project, error) {
+func (r *spyProjectsRepo) UpdateState(_ context.Context, _, _ int64, _ projects.State) (projects.Project, projects.State, error) {
 	r.mutations = append(r.mutations, "UpdateState")
-	return projects.Project{}, nil
+	return projects.Project{}, "", nil
 }
 
 func (r *spyProjectsRepo) Delete(_ context.Context, _ int64) (bool, error) {

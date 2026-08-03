@@ -306,6 +306,34 @@ func listItemsAuthenticated(t *testing.T, srv *authTestServer, login loginResult
 	return list.Items
 }
 
+// createProjectAuthenticated performs POST /api/v1/projects using an
+// already logged-in session's cookie/CSRF token (loginResult from
+// doLogin) — mirrors createItemAuthenticated, used by CSRF tests that need
+// at least one real project to change state on / delete (F-21).
+func createProjectAuthenticated(t *testing.T, srv *authTestServer, login loginResult, name string) projectDTO {
+	t.Helper()
+	res := doJSONWithCookie(t, http.MethodPost, srv.URL+"/api/v1/projects", login.SessionToken, login.CSRFToken,
+		map[string]string{"name": name})
+	if res.StatusCode != http.StatusCreated {
+		var errBody errorResponse
+		decodeJSON(t, res, &errBody)
+		t.Fatalf("createProjectAuthenticated(%q) status = %d, error = %+v", name, res.StatusCode, errBody)
+	}
+	var created projectDTO
+	decodeJSON(t, res, &created)
+	return created
+}
+
+// listProjectsAuthenticated performs GET /api/v1/projects with a session
+// cookie.
+func listProjectsAuthenticated(t *testing.T, srv *authTestServer, login loginResult) []projectDTO {
+	t.Helper()
+	res := doJSONWithCookie(t, http.MethodGet, srv.URL+"/api/v1/projects", login.SessionToken, "", nil)
+	var list projectsListResponse
+	decodeJSON(t, res, &list)
+	return list.Projects
+}
+
 // assertNoItemWithName fails the test if any item with the given name
 // exists — used after an expected-to-be-rejected mutation to confirm it
 // truly had no effect (AC-07/S1b: "no produeix cap efecte").

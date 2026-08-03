@@ -190,15 +190,33 @@ func (r *ProjectsRepository) List(ctx context.Context) ([]projects.Project, erro
 // store.ItemsRepository.Update for the full rationale on why BEGIN
 // IMMEDIATE (rather than database/sql's deferred BeginTx) is required to
 // avoid a concurrent SQLITE_BUSY on lock upgrade.
-func (r *ProjectsRepository) UpdateState(ctx context.Context, id, userID int64, newState projects.State) (projects.Project, error) {
+//
+// The prior state is read with `SELECT state ... WHERE id = ?` on the same
+// conn, immediately before the UPDATE, inside this same critical section
+// (F-23 fix). Previously this read happened via a separate, non-
+// transactional Service.Get call before this transaction even began, which
+// left a window where a second concurrent UpdateState could commit its own
+// transition in between — making the first call's "previous state" stale
+// by the time its event was recorded. Reading it here guarantees
+// previousState is exactly the row value this specific commit overwrote.
+//
+// The returned Project is also read on this same conn, BEFORE COMMIT
+// releases the write lock — not via a post-commit r.Get(ctx, id) call.
+// Reading it after COMMIT would reopen the very same class of race for
+// the *response* value: a second concurrent UpdateState could acquire the
+// lock and overwrite the row again in the window between this
+// transaction's COMMIT and its own subsequent Get, making the returned
+// Project (and therefore the event's own "to") reflect someone else's
+// write instead of this transaction's.
+func (r *ProjectsRepository) UpdateState(ctx context.Context, id, userID int64, newState projects.State) (projects.Project, projects.State, error) {
 	conn, err := r.db.Conn(ctx)
 	if err != nil {
-		return projects.Project{}, fmt.Errorf("store: acquire conn: %w", err)
+		return projects.Project{}, "", fmt.Errorf("store: acquire conn: %w", err)
 	}
 	defer conn.Close() //nolint:errcheck // returning to the pool
 
 	if _, err := conn.ExecContext(ctx, `BEGIN IMMEDIATE`); err != nil {
-		return projects.Project{}, fmt.Errorf("store: begin immediate: %w", err)
+		return projects.Project{}, "", fmt.Errorf("store: begin immediate: %w", err)
 	}
 	committed := false
 	defer func() {
@@ -207,6 +225,15 @@ func (r *ProjectsRepository) UpdateState(ctx context.Context, id, userID int64, 
 		}
 	}()
 
+	var previousState string
+	err = conn.QueryRowContext(ctx, `SELECT state FROM projects WHERE id = ?`, id).Scan(&previousState)
+	if errors.Is(err, sql.ErrNoRows) {
+		return projects.Project{}, "", projects.ErrNotFound{ID: id}
+	}
+	if err != nil {
+		return projects.Project{}, "", fmt.Errorf("store: read previous project state: %w", err)
+	}
+
 	res, err := conn.ExecContext(ctx,
 		`UPDATE projects
 		 SET state = ?, last_updated_by = ?, updated_at = CURRENT_TIMESTAMP
@@ -214,21 +241,28 @@ func (r *ProjectsRepository) UpdateState(ctx context.Context, id, userID int64, 
 		string(newState), userID, id,
 	)
 	if err != nil {
-		return projects.Project{}, fmt.Errorf("store: update project state: %w", err)
+		return projects.Project{}, "", fmt.Errorf("store: update project state: %w", err)
 	}
 	n, err := res.RowsAffected()
 	if err != nil {
-		return projects.Project{}, fmt.Errorf("store: rows affected: %w", err)
+		return projects.Project{}, "", fmt.Errorf("store: rows affected: %w", err)
 	}
 	if n == 0 {
-		return projects.Project{}, projects.ErrNotFound{ID: id}
+		return projects.Project{}, "", projects.ErrNotFound{ID: id}
+	}
+
+	row := conn.QueryRowContext(ctx, `SELECT `+projectSelectColumns+projectSelectFrom+` WHERE p.id = ?`, id)
+	updated, err := scanProject(row.Scan)
+	if err != nil {
+		return projects.Project{}, "", fmt.Errorf("store: read updated project: %w", err)
 	}
 
 	if _, err := conn.ExecContext(ctx, `COMMIT`); err != nil {
-		return projects.Project{}, fmt.Errorf("store: commit update project state: %w", err)
+		return projects.Project{}, "", fmt.Errorf("store: commit update project state: %w", err)
 	}
 	committed = true
-	return r.Get(ctx, id)
+
+	return updated, projects.State(previousState), nil
 }
 
 // Delete removes the row. Idempotent: deleting an id that does not exist

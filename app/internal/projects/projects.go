@@ -59,9 +59,14 @@ type Repository interface {
 	List(ctx context.Context) ([]Project, error)
 	// UpdateState applies a state transition: sets state, last_updated_by,
 	// updated_at, inside a single BEGIN IMMEDIATE transaction (ADR-01 of
-	// NIU-1, reapplied here — design.md §5 Flux 2). Returns ErrNotFound if
-	// the id does not exist.
-	UpdateState(ctx context.Context, id, userID int64, newState State) (Project, error)
+	// NIU-1, reapplied here — design.md §5 Flux 2). The prior state is read
+	// inside that same transaction, immediately before the UPDATE, and
+	// returned as previousState — this is the only way to guarantee the
+	// value is what this specific commit truly overwrote, not a value read
+	// by a separate, non-transactional round-trip that a concurrent writer
+	// could invalidate in between (F-23). Returns ErrNotFound if the id
+	// does not exist.
+	UpdateState(ctx context.Context, id, userID int64, newState State) (project Project, previousState State, err error)
 	// Delete removes the row. Implementations MUST be idempotent: deleting
 	// an already-absent id is not an error (EC-13).
 	Delete(ctx context.Context, id int64) (existed bool, err error)
