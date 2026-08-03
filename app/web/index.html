@@ -25,14 +25,21 @@
      multi-round-trip waterfall that blows past the <1s NFR-06 budget on
      a high-latency connection (verified via Playwright 3G emulation,
      T-30). modulepreload lets the browser fetch every module concurrently
-     up front instead. -->
+     up front instead. SPA merge: this single shell now preloads the
+     union of what index.html + projects.html preloaded separately. -->
 <link rel="modulepreload" href="./js/api.js">
+<link rel="modulepreload" href="./js/projects-api.js">
 <link rel="modulepreload" href="./js/a11y.js">
 <link rel="modulepreload" href="./js/flip.js">
 <link rel="modulepreload" href="./js/confetti.js">
 <link rel="modulepreload" href="./js/render.js">
+<link rel="modulepreload" href="./js/projects-render.js">
 <link rel="modulepreload" href="./js/store.js">
+<link rel="modulepreload" href="./js/projects-store.js">
 <link rel="modulepreload" href="./js/tabs.js">
+<link rel="modulepreload" href="./js/router.js">
+<link rel="modulepreload" href="./js/shopping-view.js">
+<link rel="modulepreload" href="./js/projects-view.js">
 <link rel="modulepreload" href="./js/auth.js">
 <link rel="modulepreload" href="./js/strings.js">
 <link rel="modulepreload" href="./js/main.js">
@@ -42,8 +49,8 @@
     <header class="app-header">
       <span class="wordmark">niu</span>
       <nav class="app-nav" aria-label="Seccions de Niu">
-        <a class="app-nav-link is-active" href="./index.html">🛒 Compra</a>
-        <a class="app-nav-link" href="./projects.html">🏠 Projectes</a>
+        <a class="app-nav-link is-active" href="/" data-route="/">🛒 Compra</a>
+        <a class="app-nav-link" href="/projects" data-route="/projects">🏠 Projectes</a>
       </nav>
       <div class="header-right">
         <div class="user-chip" id="user-chip">
@@ -54,46 +61,81 @@
       </div>
     </header>
 
-    <!-- §8.7 aria-live region: shared, immediately after header, before both boxes -->
+    <!-- §8.7 aria-live region: shared, immediately after header, before
+         either view's content. One live region for the whole SPA shell —
+         both views' announcements route through it. -->
     <div id="live-region" class="sr-only" role="status" aria-live="polite" aria-atomic="true"></div>
 
-    <!-- Mobile tab bar (§8.3.2, EC-16). Hidden on desktop via app.css. -->
-    <div class="tabbar" role="tablist" aria-label="Seccions">
-      <button class="tab is-active" data-panel="shopping" role="tab" aria-selected="true" aria-controls="box-shopping" type="button">
-        🛒 Comprar <span id="tab-count-shopping">(0)</span>
-      </button>
-      <button class="tab" data-panel="pantry" role="tab" aria-selected="false" aria-controls="box-pantry" type="button">
-        🥫 Rebost <span id="tab-count-pantry">(0)</span>
-      </button>
-    </div>
+    <!-- ============ Shopping-list view (route "/") ============ -->
+    <main data-view="shopping">
+      <!-- Mobile tab bar (§8.3.2, EC-16). Hidden on desktop via app.css. -->
+      <div class="tabbar" role="tablist" aria-label="Seccions">
+        <button class="tab is-active" data-panel="shopping" role="tab" aria-selected="true" aria-controls="box-shopping" type="button">
+          🛒 Comprar <span id="tab-count-shopping">(0)</span>
+        </button>
+        <button class="tab" data-panel="pantry" role="tab" aria-selected="false" aria-controls="box-pantry" type="button">
+          🥫 Rebost <span id="tab-count-pantry">(0)</span>
+        </button>
+      </div>
 
-    <div class="boxes">
-      <section class="box panel is-visible" id="box-shopping" role="region" aria-label="A comprar">
+      <div class="boxes">
+        <section class="box panel is-visible" id="box-shopping" role="region" aria-label="A comprar">
+          <div class="box-header">
+            <h2 class="box-title"><span aria-hidden="true">🛒</span> A comprar</h2>
+            <span class="box-count" id="count-shopping">(0)</span>
+          </div>
+          <hr>
+          <ul class="item-list" id="list-shopping"></ul>
+          <div class="add-input-group" id="add-group">
+            <input type="text" id="add-input" placeholder="+ afegir un ítem…" aria-label="Afegir un ítem" maxlength="200">
+            <button class="add-btn" id="add-btn" type="button">Afegir</button>
+          </div>
+          <div class="add-footer">
+            <span class="error-msg" id="add-error" role="alert" hidden></span>
+            <span class="counter" id="add-counter">0/200</span>
+          </div>
+        </section>
+
+        <section class="box panel" id="box-pantry" role="region" aria-label="Rebost">
+          <div class="box-header">
+            <h2 class="box-title"><span aria-hidden="true">🥫</span> Rebost</h2>
+            <span class="box-count" id="count-pantry">(0)</span>
+          </div>
+          <hr>
+          <ul class="item-list" id="list-pantry"></ul>
+        </section>
+      </div>
+    </main>
+
+    <!-- ============ Projects view (route "/projects") ============ -->
+    <main data-view="projects" hidden>
+      <section class="box projects-box" id="box-projects" role="region" aria-label="Projectes">
         <div class="box-header">
-          <h2 class="box-title"><span aria-hidden="true">🛒</span> A comprar</h2>
-          <span class="box-count" id="count-shopping">(0)</span>
+          <h2 class="box-title"><span aria-hidden="true">🏠</span> Compres grans i projectes de casa</h2>
+          <span class="box-count" id="projects-count">(0)</span>
         </div>
         <hr>
-        <ul class="item-list" id="list-shopping"></ul>
-        <div class="add-input-group" id="add-group">
-          <input type="text" id="add-input" placeholder="+ afegir un ítem…" aria-label="Afegir un ítem" maxlength="200">
-          <button class="add-btn" id="add-btn" type="button">Afegir</button>
-        </div>
-        <div class="add-footer">
-          <span class="error-msg" id="add-error" role="alert" hidden></span>
-          <span class="counter" id="add-counter">0/200</span>
-        </div>
-      </section>
+        <ul class="item-list" id="projects-list"></ul>
 
-      <section class="box panel" id="box-pantry" role="region" aria-label="Rebost">
-        <div class="box-header">
-          <h2 class="box-title"><span aria-hidden="true">🥫</span> Rebost</h2>
-          <span class="box-count" id="count-pantry">(0)</span>
+        <div class="add-project-form" id="add-project-form">
+          <div class="add-input-group" id="add-project-group">
+            <input type="text" id="add-project-name" placeholder="+ afegir una idea o projecte…" aria-label="Nom del projecte" maxlength="200">
+          </div>
+          <div class="add-project-optional">
+            <div class="add-input-group">
+              <input type="text" id="add-project-budget" placeholder="Pressupost (opcional)" aria-label="Pressupost" maxlength="200">
+            </div>
+            <div class="add-input-group">
+              <input type="date" id="add-project-target-date" aria-label="Data objectiu (opcional)">
+            </div>
+            <button class="add-btn" id="add-project-btn" type="button">Afegir</button>
+          </div>
+          <div class="add-footer">
+            <span class="error-msg" id="add-project-error" role="alert" hidden></span>
+          </div>
         </div>
-        <hr>
-        <ul class="item-list" id="list-pantry"></ul>
       </section>
-    </div>
+    </main>
 
     <footer class="app-footer">Fet per Fikua · © 2026</footer>
   </div>

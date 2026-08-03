@@ -154,11 +154,12 @@ header.app-header .wordmark {
   font-weight: var(--type-title-weight);
   color: var(--color-moss);
 }
-/* ================= Navigation (NIU-5, ADR-04) =================
+/* ================= Navigation (NIU-5, ADR-04; SPA merge) =================
    Two top-level entries, visible from anywhere in the app: the shopping
    list (moss green accent, unchanged) and the projects space (terracotta
-   accent) — plain links between two static documents, no client router,
-   no re-auth on navigation (design.md §7). */
+   accent). Since the SPA merge these are same-shell route links handled
+   by js/router.js (history.pushState, no full navigation) — is-active is
+   toggled by the router via data-route, not inferred from href. */
 .app-nav {
   display: flex;
   gap: var(--space-sm);
@@ -177,8 +178,8 @@ header.app-header .wordmark {
 .app-nav-link:hover { color: var(--color-text-primary); }
 .app-nav-link:focus-visible { outline: 2px solid var(--color-focus-ring); outline-offset: 2px; }
 .app-nav-link.is-active { color: var(--color-text-primary); }
-.app-nav-link.is-active[href$="index.html"] { border-bottom-color: var(--color-moss); }
-.app-nav-link.is-active[href$="projects.html"] { border-bottom-color: var(--color-terracotta); }
+.app-nav-link.is-active[data-route="/"] { border-bottom-color: var(--color-moss); }
+.app-nav-link.is-active[data-route="/projects"] { border-bottom-color: var(--color-terracotta); }
 
 @media (max-width: 767px) {
   .app-nav { order: 3; flex-basis: 100%; }

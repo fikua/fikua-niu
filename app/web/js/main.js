@@ -1,38 +1,25 @@
-// main.js — entry point: event wiring (click/tap and Enter/Space on
-// ItemRow via native <button>, add form, delete button, mobile tabs,
-// toast "×"/Escape), immediate syncFromServer() + setInterval(10000) +
-// window focus listener, and GET /api/v1/me on load.
+// main.js — SPA entry point. Resolves identity EXACTLY ONCE per page
+// load (GET /api/v1/me), then mounts both the shopping-list view and the
+// projects view up front (both are cheap to keep in memory — the DOM
+// visibility toggles per route, not the JS module lifecycle) and wires
+// the client-side router.
+//
+// Before this merge, index.html and projects.html were two independent
+// full pages, each with its own entry point that called GET /api/v1/me
+// on every load — switching between "Compra" and "Projectes" meant two
+// full page reloads, each re-resolving identity and re-fetching its list
+// from scratch, on top of re-fetching manifest.json etc. Under normal
+// two-person household usage this tripped Traefik's rate limit (429s,
+// confirmed via browser console). Merging into one shell with a hand-
+// rolled router means identity is resolved once, and clicking between
+// views is a DOM toggle, not a network round trip.
 
 import * as api from './api.js';
 import { initAnnounce } from './a11y.js';
-import { initStore, addItemOptimistic, moveItemOptimistic, deleteItemOptimistic, syncFromServer, setCurrentUserId, prefetchItems, rerender } from './store.js';
-import { dismissToast } from './render.js';
-import { wireTabs, setActivePanel } from './tabs.js';
+import { wireRouter } from './router.js';
 import { logout } from './auth.js';
-import { t, onLocaleChange } from './strings.js';
-
-const POLL_INTERVAL_MS = 10000;
-
-const MAX_NAME_LENGTH = 200;
-
-function boxLabelFor(location) {
-  return location === 'shopping' ? t('boxShopping') : t('boxPantry');
-}
-
-function validateNameClientSide(raw) {
-  const trimmed = raw.trim();
-  if (trimmed.length === 0) {
-    return { ok: false, message: t('errorEmptyName') };
-  }
-  if (raw.length > MAX_NAME_LENGTH) {
-    return { ok: false, message: t('errorTooLong', raw.length) };
-  }
-  // eslint-disable-next-line no-control-regex
-  if (/[\x00-\x08\x0B\x0C\x0E-\x1F]/.test(raw)) {
-    return { ok: false, message: t('errorInvalidChars') };
-  }
-  return { ok: true, name: trimmed };
-}
+import { initShoppingView, prefetchShoppingItems } from './shopping-view.js';
+import { initProjectsView, prefetchProjectsList } from './projects-view.js';
 
 async function main() {
   // AC-05/design.md §7: resolve identity BEFORE mounting any UI. On 401,
@@ -40,13 +27,12 @@ async function main() {
   // api.js's centralized handleUnauthenticated) — returning here avoids
   // rendering so much as an empty list first (no flicker).
   //
-  // GET /api/v1/items is kicked off in parallel (not awaited here) so the
-  // two requests share one round trip's worth of latency instead of being
-  // serialized — NFR-06 budgets initial load at <1s even on a throttled
-  // connection, and getMe()+getItems() run one-after-another would burn a
-  // second RTT for no reason (both succeed or fail together: no session
-  // means neither endpoint returns data).
-  prefetchItems();
+  // GET /api/v1/items and GET /api/v1/projects are both kicked off in
+  // parallel (not awaited here) so all three requests share one round
+  // trip's worth of latency instead of being serialized — NFR-06 budgets
+  // initial load at <1s even on a throttled connection.
+  prefetchShoppingItems();
+  prefetchProjectsList();
 
   let me;
   try {
@@ -58,106 +44,23 @@ async function main() {
   const liveRegion = document.getElementById('live-region');
   initAnnounce(liveRegion);
 
-  initStore({
-    onMove: (id) => moveItemOptimistic(id),
-    onDelete: (id) => deleteItemOptimistic(id),
-  });
+  wireRouter();
 
-  wireTabs();
-  setActivePanel('shopping');
-  wireAddForm();
-  wireToastDismiss();
-  wireLogoutButton();
-  onLocaleChange(() => rerender());
-
-  setCurrentUserId(me.id);
   const nameEl = document.getElementById('user-name');
   const avatarEl = document.getElementById('user-avatar');
   if (nameEl) nameEl.textContent = me.display_name;
   if (avatarEl) avatarEl.textContent = me.avatar_emoji;
+  wireLogoutButton();
 
-  // Flux 3 (design.md §5): immediate sync, then poll every ~10s, plus a
-  // refetch on window focus (AC-08).
-  syncFromServer();
-  setInterval(syncFromServer, POLL_INTERVAL_MS);
-  window.addEventListener('focus', syncFromServer);
-}
-
-function wireAddForm() {
-  const addInput = document.getElementById('add-input');
-  const addBtn = document.getElementById('add-btn');
-  const addGroup = document.getElementById('add-group');
-  const addError = document.getElementById('add-error');
-  const addCounter = document.getElementById('add-counter');
-
-  function showError(message) {
-    addError.textContent = message;
-    addError.hidden = false;
-    addGroup.classList.add('has-error');
-  }
-
-  function clearError() {
-    addError.hidden = true;
-    addGroup.classList.remove('has-error');
-  }
-
-  function updateCounter() {
-    const len = addInput.value.length;
-    addCounter.textContent = `${len}/200`;
-    // §8.7: counter is aria-live only when <=20 chars remain, to avoid
-    // noise while typing a short name.
-    if (200 - len <= 20) {
-      addCounter.setAttribute('aria-live', 'polite');
-    } else {
-      addCounter.removeAttribute('aria-live');
-    }
-  }
-
-  async function submitNewItem() {
-    const raw = addInput.value;
-    const clientCheck = validateNameClientSide(raw);
-    if (!clientCheck.ok) {
-      showError(clientCheck.message);
-      addInput.focus(); // focus stays on input, text is NOT cleared (§8.4.3)
-      return;
-    }
-
-    addInput.disabled = true;
-    addBtn.disabled = true;
-    try {
-      await addItemOptimistic(raw);
-      clearError();
-      addInput.value = '';
-      updateCounter();
-    } catch (err) {
-      // Server-side validation/duplicate errors (EC-06, EC-01..EC-05).
-      const message = err && err.message ? err.message : t('errorGeneric');
-      showError(message);
-    } finally {
-      addInput.disabled = false;
-      addBtn.disabled = false;
-      addInput.focus();
-    }
-  }
-
-  addBtn.addEventListener('click', submitNewItem);
-  addInput.addEventListener('keydown', (e) => {
-    if (e.key === 'Enter') {
-      e.preventDefault();
-      submitNewItem();
-    }
-  });
-  addInput.addEventListener('input', updateCounter);
-
-  updateCounter();
-}
-
-function wireToastDismiss() {
-  document.addEventListener('keydown', (e) => {
-    if (e.key === 'Escape') {
-      dismissToast();
-    }
-  });
+  // Both views are mounted up front regardless of which route is active —
+  // both stores keep polling on their existing 10s intervals no matter
+  // which view is currently visible. This is deliberate: it is what keeps
+  // "other user's changes appear promptly" working even for the view
+  // you're not looking at (design.md §5 Flux 3), and per-view start/stop
+  // polling logic would be unnecessary complexity for a 2-person
+  // household app with cheap SQLite reads.
+  initShoppingView(me);
+  initProjectsView(me);
 }
 
 function wireLogoutButton() {
