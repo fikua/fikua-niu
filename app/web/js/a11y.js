@@ -36,6 +36,20 @@ export function announceMove(itemName, location, movedByDisplayName) {
   }
 }
 
+// announceProjectStateChange writes the exact wording required by
+// design.md §7/§8 (AC-12/NFR-07): "{nom} ara està {estat}." — on both a
+// local action and a remote change reflected via polling.
+const PROJECT_STATE_LABELS = {
+  idea: 'idea',
+  decidit: 'decidit',
+  fet: 'fet',
+};
+
+export function announceProjectStateChange(projectName, state) {
+  const label = PROJECT_STATE_LABELS[state] || state;
+  announce(`${projectName} ara està ${label}.`);
+}
+
 // wireRowFocusTabindex used to manage the delete button's `tabindex`
 // dynamically so it would only join the tab order while its row had
 // focus. That approach relied on the row ITSELF being the sole

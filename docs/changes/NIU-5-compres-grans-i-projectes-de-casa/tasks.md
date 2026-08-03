@@ -218,20 +218,20 @@ updated: "2026-08-02"
   `prefers-reduced-motion` per a aquest espai, ja que ADR-03 el
   documenta com a no aplicable. · *covers:* AC-08 (base disponibilitat
   de dades), NFR-08 (documentat com a no aplicable)
-- [ ] **T-14** — Crear `app/web/js/projects-api.js` (o estendre
+- [x] **T-14** — Crear `app/web/js/projects-api.js` (o estendre
   `api.js`): fetch wrappers `getProjects()`, `addProject()`,
   `patchProjectState()`, `deleteProject()`, reutilitzant exactament el
   mateix patró (capçalera CSRF, `handleUnauthenticated()`) que els
   wrappers d'`items` ja existents a `api.js`. · *covers:* AC-01 (base
   frontend)
-- [ ] **T-15** — Crear `app/web/js/projects-store.js` (o estendre
+- [x] **T-15** — Crear `app/web/js/projects-store.js` (o estendre
   `store.js`): estat en memòria (`projects` array), `changeProjectState
   (id, newState)` (crida `patchProjectState`, actualitza l'estat local
   amb la resposta), `syncProjectsFromServer()` seguint exactament el
   mateix cicle de `syncFromServer()` ja implementat per `items` (AC-06,
   sondeig + refetch-on-focus, sense inventar un segon mecanisme). ·
   *covers:* AC-02, AC-03, AC-09
-- [ ] **T-16** — Crear `app/web/js/projects-render.js` (o estendre
+- [x] **T-16** — Crear `app/web/js/projects-render.js` (o estendre
   `render.js`): `renderProjectRow()` amb nom, badge d'estat (text
   llegible, no només color), avatar de qui l'ha afegit, avatar + data
   de qui l'ha actualitzat per últim cop, `budget`/`target_date` només
@@ -241,13 +241,13 @@ updated: "2026-08-02"
   canviar d'estat en qualsevol direcció (mai només "següent estat"). ·
   *covers:* AC-04, AC-12 (base marcatge `aria-live`), AC-14, AC-15,
   EC-08, NFR-02
-- [ ] **T-17** — Estendre `projects-render.js` amb
+- [x] **T-17** — Estendre `projects-render.js` amb
   `renderEmptyProjectsState()`: missatge clar de "cap projecte encara"
   (EC-14, mai un error ni una taula buida sense context). Confirmar que
   el disseny responsive reutilitza el mateix patró CSS que `items`
   sense necessitar el mecanisme de pestanyes (EC-15, llista vertical
   simple). · *covers:* AC-05 (base UI eliminar), EC-14, EC-15
-- [ ] **T-18** — Crear la nova entrada de navegació ("🏠 Projectes" o
+- [x] **T-18** — Crear la nova entrada de navegació ("🏠 Projectes" o
   equivalent), visible des de qualsevol punt de l'app, costat a costat
   amb l'accés a la llista de la compra, servida des del mateix
   `index.html`/`embed.FS` o com a document separat
@@ -255,7 +255,7 @@ updated: "2026-08-02"
   `design.md`), sempre que naveguin entre seccions sense recarregar tot
   l'estat d'autenticació. · *covers:* AC-01 (base UI d'entrada), AC-08
   (base navegació)
-- [ ] **T-19** — Aplicar l'accent terracota (ja definit a `PLAN.md` §4)
+- [x] **T-19** — Aplicar l'accent terracota (ja definit a `PLAN.md` §4)
   com a color primari de l'espai de projectes — badges d'estat, botó
   "afegir" — en lloc del verd molsa ja usat per la llista de la compra
   (ADR-04). Implementar el canvi d'estat com una actualització de
@@ -267,7 +267,7 @@ updated: "2026-08-02"
   {estat}" en cada canvi (propi o remot via sondeig). · *covers:* AC-02,
   AC-03, AC-04, AC-05, AC-07 (base UI, sense error visible), AC-08,
   AC-09, AC-11, AC-12, AC-14, AC-15, EC-06, NFR-06, NFR-07, NFR-08
-- [ ] **T-20** — Cablejar `syncProjectsFromServer()` (T-15) al mateix
+- [x] **T-20** — Cablejar `syncProjectsFromServer()` (T-15) al mateix
   cicle ja implementat a `web/js/main.js`:
   `setInterval(syncFromServer, 10000)` + listener de focus de finestra,
   sense inventar un segon mecanisme de sincronització. · *covers:* AC-06

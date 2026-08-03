@@ -154,6 +154,37 @@ header.app-header .wordmark {
   font-weight: var(--type-title-weight);
   color: var(--color-moss);
 }
+/* ================= Navigation (NIU-5, ADR-04) =================
+   Two top-level entries, visible from anywhere in the app: the shopping
+   list (moss green accent, unchanged) and the projects space (terracotta
+   accent) — plain links between two static documents, no client router,
+   no re-auth on navigation (design.md §7). */
+.app-nav {
+  display: flex;
+  gap: var(--space-sm);
+  flex: 1 1 auto;
+  justify-content: center;
+}
+.app-nav-link {
+  color: var(--color-text-secondary);
+  text-decoration: none;
+  font-size: var(--type-body-size);
+  font-weight: var(--type-body-strong-weight);
+  padding: var(--space-xs) var(--space-md);
+  border-radius: var(--radius-sm);
+  border-bottom: 3px solid transparent;
+}
+.app-nav-link:hover { color: var(--color-text-primary); }
+.app-nav-link:focus-visible { outline: 2px solid var(--color-focus-ring); outline-offset: 2px; }
+.app-nav-link.is-active { color: var(--color-text-primary); }
+.app-nav-link.is-active[href$="index.html"] { border-bottom-color: var(--color-moss); }
+.app-nav-link.is-active[href$="projects.html"] { border-bottom-color: var(--color-terracotta); }
+
+@media (max-width: 767px) {
+  .app-nav { order: 3; flex-basis: 100%; }
+  header.app-header { flex-wrap: wrap; }
+}
+
 .header-right {
   display: flex;
   align-items: center;
@@ -570,4 +601,88 @@ header.app-header .wordmark {
   line-height: var(--type-caption-line);
   color: var(--color-text-secondary);
   text-align: center;
+}
+
+/* ================= Projects space (NIU-5) =================
+   Single list with a per-row state badge/selector (design.md §7/§10 —
+   confirmed at the human gate: no three-column board, no drag-and-drop).
+   Terracotta is this space's primary accent (ADR-04), replacing the moss
+   green used by the shopping list, on the same tokens defined above — no
+   new colour values. State change is a text/badge update only, no FLIP,
+   no movement animation (ADR-03) — prefers-reduced-motion needs no
+   special handling here. */
+
+.projects-box { margin-top: var(--space-md); }
+.projects-box .box-title { color: var(--color-terracotta); }
+
+.project-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-sm);
+  background: var(--color-surface-soft);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-sm);
+  padding: var(--space-sm) var(--space-md);
+  font-size: var(--type-body-size);
+  line-height: var(--type-body-line);
+  width: 100%;
+}
+.project-row:hover { background: var(--color-surface); box-shadow: var(--shadow-md); }
+
+.project-name { flex: 1 1 160px; font-weight: var(--type-body-strong-weight); }
+.project-budget, .project-target-date {
+  font-size: var(--type-caption-size);
+  color: var(--color-text-secondary);
+  background: var(--color-surface);
+  border-radius: var(--radius-sm);
+  padding: var(--space-xs) var(--space-sm);
+}
+
+.project-state-selector {
+  display: flex;
+  gap: var(--space-xs);
+  flex: 0 0 auto;
+}
+.state-badge {
+  border: 1px solid var(--color-border);
+  background: var(--color-surface);
+  color: var(--color-text-secondary);
+  border-radius: var(--radius-sm);
+  padding: var(--space-xs) var(--space-sm);
+  font-family: inherit;
+  font-size: var(--type-caption-size);
+  font-weight: var(--type-body-strong-weight);
+  cursor: pointer;
+  min-height: 32px;
+}
+.state-badge:hover { background: var(--color-surface-soft); }
+.state-badge:focus-visible { outline: 2px solid var(--color-focus-ring); outline-offset: 2px; }
+.state-badge.is-current {
+  background: var(--color-terracotta);
+  border-color: var(--color-terracotta);
+  color: #fff;
+}
+.state-badge.is-current:hover { background: var(--color-terracotta-hover); }
+
+.add-project-form {
+  margin-top: var(--space-md);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-sm);
+}
+.add-project-optional {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-sm);
+  align-items: center;
+}
+.add-project-optional .add-input-group { flex: 1 1 160px; margin-top: 0; }
+.add-project-optional .add-btn { background: var(--color-terracotta); }
+.add-project-optional .add-btn:hover { background: var(--color-terracotta-hover); }
+.add-project-optional .add-btn:active { background: var(--color-terracotta-active); }
+
+@media (max-width: 767px) {
+  .project-row { flex-direction: column; align-items: stretch; }
+  .state-badge { min-height: var(--touch-target-min); }
 }
