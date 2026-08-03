@@ -48,7 +48,7 @@ notes soltes.
 
 ## 3. Client
 
-- **Primari:** Oriol i Joana, els dos usuaris de Niu, en peu d'igualtat
+- **Primari:** Usuari A i Usuari B, els dos usuaris de Niu, en peu d'igualtat
   — mateix rol que estableix [overview.md](../../overview.md) §"Per a
   qui": no hi ha administrador ni jerarquia.
 - **Secundari:** cap. Mateixa naturalesa de producte privat per a dues

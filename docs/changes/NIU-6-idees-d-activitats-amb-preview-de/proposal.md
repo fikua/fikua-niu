@@ -28,7 +28,7 @@ sense perdre'n el context visual abans de decidir si es fan.
 
 ## 2. Problema
 
-- Sovint Oriol i Joana troben activitats interessants navegant —
+- Sovint Usuari A i Usuari B troben activitats interessants navegant —
   una web d'un restaurant, una publicació d'Instagram, un esdeveniment —
   però no tenen cap lloc compartit per desar-les que conservi el
   context visual (de què tracta, quin aspecte té) sense haver de tornar a
@@ -47,7 +47,7 @@ sense perdre'n el context visual abans de decidir si es fan.
 
 ## 3. Client
 
-- **Primari:** Oriol i Joana, els dos usuaris de Niu, en peu d'igualtat
+- **Primari:** Usuari A i Usuari B, els dos usuaris de Niu, en peu d'igualtat
   — mateix rol que estableix [overview.md](../../overview.md) §"Per a
   qui": no hi ha administrador ni jerarquia.
 - **Secundari:** cap. Mateixa naturalesa de producte privat per a dues
