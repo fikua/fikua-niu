@@ -592,21 +592,23 @@ and correctly scoped — not a finding on its own.**
   reachable regardless of SSRF outcome, since `ideas-render.js`'s URL/
   title paths share the same `textContent`-only code.
 
-### F-21 — `-race` coverage for `tests/integration` not confirmed (minor, testing — qa-engineer's QA-02)
+### F-21 — `-race` coverage for `tests/integration` (resolved, no action needed)
 
-- **Severity:** minor
+- **Severity:** n/a (closed during this compose, listed for the record)
 - **Category:** testing
 - **Location:** `app/tests/integration/...`
 - **Observation:** `qa-engineer` flagged that `go test -race ./...`
-  never completed for `tests/integration` within their session (three
-  attempts, all interrupted by tooling timeouts). All other packages
-  passed under `-race`. This agent started `go test -race
-  ./tests/integration/...` in isolation to close the gap; still running
-  at compose time — **result pending, to be appended before sign-off.**
-- **Why it matters:** low residual risk (non-race suite + concurrency-
-  shaped tests already pass), but not the same as a confirmed `-race`
-  pass — should not be reported to the human gate as green until
-  confirmed.
+  never completed for `tests/integration` within their session. A first
+  isolated run by this agent hit Go's default 600s test timeout (not a
+  `DATA RACE` report, not a `panic` — just goroutines parked mid-request
+  in `net/http`'s `readLoop`/`writeLoop`, consistent with the suite
+  running slower under `-race` instrumentation, as
+  `fullstack-developer` had already noted for the full-suite run in
+  `/code`). Re-ran with `-timeout 20m`: **`ok  niu/tests/integration
+  680.913s` — clean, zero data races.**
+- **Why it matters:** confirms the concurrency-heavy code (`internal/ideas`
+  worker pool, the SSRF `countingListener` atomics) has no detected data
+  race. No action required.
 - **Suggested fix:** none pending confirmation; if it fails, treat as
   blocking (a real data race) and re-open.
 
@@ -700,11 +702,11 @@ and correctly scoped — not a finding on its own.**
       are pinned to the exact finding they guard, not generic redirect
       tests — verified by reading the assertions, not just the test
       names). Full AC/EC/NFR matrix in §2 confirms zero unverified items.
-      Gaps found: F-03 (no CSRF test for `/ideas`), F-11 (F-01 regression
-      test doesn't actually detect what its name claims, though the
-      mutation is caught elsewhere), F-20 (no client-side E2E non-execution
-      assertion for ideas' XSS mitigation), F-21 (`-race` on
-      `tests/integration` not yet confirmed at compose time).
+      `-race` confirmed clean on `tests/integration` (F-21). Remaining
+      gaps: F-03 (no CSRF test for `/ideas`), F-11 (F-01 regression test
+      doesn't actually detect what its name claims, though the mutation
+      is caught elsewhere), F-20 (no client-side E2E non-execution
+      assertion for ideas' XSS mitigation).
 - [x] **Naming** — clear and conventional, matches `internal/items`/
       `internal/projects` 1:1 (`Service`, `Repository`, `ErrValidation`).
       `fetchsafe`'s error sentinels are descriptive
@@ -824,21 +826,17 @@ and correctly scoped — not a finding on its own.**
 13. Add a Playwright case asserting client-side non-execution of a script
     payload reaching the ideas card (e.g. via the URL field) — owner:
     `fullstack-developer`/`qa-engineer` — fixes: F-20
-14. Confirm `go test -race ./tests/integration/...` passes clean (run was
-    in progress at compose time — see F-21) — owner: `code-reviewer` —
-    fixes: F-21
 
 ## 8. Sign-off
 
 - **Approver:** none yet — verdict is `CHANGES_REQUESTED`.
 - **Date:** 2026-08-03
 - **Next step:** return to `/code` for action items 1-2 (blocking: F-17,
-  F-19). Items 4-14 are non-blocking and may ship in the same pass or a
-  fast-follow — none create exploitable state in production today. Item
-  14 (`-race` on `tests/integration`) was launched by this agent and is
-  still running at compose time; append its result to F-21 before final
-  sign-off. Re-audit once items 1-2 land; this agent will re-verify
-  F-17/F-19 against the actual diff (not the commit message) before
-  changing the verdict, per this project's established re-audit
+  F-19). Items 4-13 are non-blocking and may ship in the same pass or a
+  fast-follow — none create exploitable state in production today
+  (F-21's `-race` run has since been confirmed clean, see §3). Re-audit
+  once items 1-2 land; this agent will re-verify F-17/F-19 against the
+  actual diff (not the commit message) before changing the verdict, per
+  this project's established re-audit
   discipline (see `NIU-5-*/review.md` §1.1 for the precedent this
   follows).
