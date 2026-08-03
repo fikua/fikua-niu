@@ -9,10 +9,53 @@ package fetchsafe
 
 import (
 	"io"
+	"net/url"
 	"strings"
 
 	"golang.org/x/net/html"
 )
+
+// Length caps for recovered Open Graph fields (F-10/F-07, security/
+// resource limits — CWE-770). The 2MiB LimitReader (T-03g) already bounds
+// the worst case per row, but these caps keep list-rendering/DOM
+// performance sane and avoid growing the SQLite file unnecessarily on a
+// resource-constrained VPS. Truncate, never reject the whole preview.
+const (
+	maxTitleLen       = 300
+	maxDescriptionLen = 1000
+	maxImageURLLen    = 2048
+)
+
+// truncate cuts s to at most n runes, leaving it untouched if already
+// shorter. Rune-aware so multi-byte UTF-8 (Catalan diacritics, emoji in
+// recovered titles) is never split mid-codepoint.
+func truncate(s string, n int) string {
+	if len(s) <= n {
+		return s
+	}
+	r := []rune(s)
+	if len(r) <= n {
+		return s
+	}
+	return string(r[:n])
+}
+
+// isHTTPOrHTTPSURL reports whether content parses as an absolute http(s)
+// URL — the same scheme rule fetchsafe applies to fetch destinations
+// (validateScheme), reused here for a different trust boundary: values
+// *recovered from* a fetched page's content (og:image), not the page's
+// own URL (F-09/F-06). javascript:, data:, file:, and scheme-relative
+// (//host/path) values are all rejected.
+func isHTTPOrHTTPSURL(content string) bool {
+	parsed, err := url.Parse(content)
+	if err != nil {
+		return false
+	}
+	if parsed.Scheme != "http" && parsed.Scheme != "https" {
+		return false
+	}
+	return parsed.Host != ""
+}
 
 // parseOpenGraph tokenizes r (already limited by io.LimitReader, T-03g)
 // and extracts Open Graph metadata from <meta property="og:*"> tags found
@@ -102,17 +145,29 @@ func applyMetaToken(token html.Token, preview *Preview) bool {
 	switch property {
 	case "og:title":
 		if preview.Title == "" {
-			preview.Title = content
+			preview.Title = truncate(content, maxTitleLen)
 			return true
 		}
 	case "og:image":
 		if preview.ImageURL == "" {
-			preview.ImageURL = content
+			// F-09/F-06: validate the scheme of a value *recovered from*
+			// the page's own content before ever storing it — a crafted
+			// og:image (javascript:, data:, file:, //host/x.png) would
+			// otherwise reach the browser's <img src> unfiltered, with
+			// only the CSP standing in the way (accidental, not a
+			// code-level control). Silently discard anything that is not
+			// a clean http(s) URL: the field simply stays empty, falling
+			// through to the already-implemented partial/failed states —
+			// never a hard error for the whole preview.
+			if !isHTTPOrHTTPSURL(content) {
+				return false
+			}
+			preview.ImageURL = truncate(content, maxImageURLLen)
 			return true
 		}
 	case "og:description":
 		if preview.Description == "" {
-			preview.Description = content
+			preview.Description = truncate(content, maxDescriptionLen)
 			return true
 		}
 	}
