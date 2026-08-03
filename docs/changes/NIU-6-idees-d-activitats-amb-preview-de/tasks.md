@@ -260,19 +260,19 @@ updated: "2026-08-03"
 
 ### Implementation — frontend
 
-- [ ] **T-15** — Crear `app/web/js/ideas-api.js` (o estendre `api.js`):
+- [x] **T-15** — Crear `app/web/js/ideas-api.js` (o estendre `api.js`):
   fetch wrappers `getIdeas()`, `addIdea(url)`, `deleteIdea(id)`,
   reutilitzant exactament el mateix patró (capçalera CSRF,
   `handleUnauthenticated()`) que els wrappers d'`items`/`projects` ja
   existents. · *covers:* AC-04 (base transport)
-- [ ] **T-16** — Crear `app/web/js/ideas-store.js` (o estendre
+- [x] **T-16** — Crear `app/web/js/ideas-store.js` (o estendre
   `store.js`): estat en memòria (`ideas` array),
   `syncIdeasFromServer()` seguint exactament el mateix cicle de
   `syncFromServer()` ja implementat per `items`/`projects` (sondeig
   ~10s + refetch-on-focus, sense inventar un segon mecanisme). ·
   *covers:* AC-01, AC-02, AC-03, AC-11 (base — dades disponibles per a
   l'anunci `aria-live`)
-- [ ] **T-17** — Crear `app/web/js/ideas-render.js` (o estendre
+- [x] **T-17** — Crear `app/web/js/ideas-render.js` (o estendre
   `render.js`): implementar `AddLinkInput` (§8.3 de `proposal.md`) i
   `IdeaCard` amb els **quatre estats** A (`ready`) / B (`failed`) / C
   (`partial`) / D (`pending`, "Recuperant…") mapejats exactament als
@@ -283,14 +283,14 @@ updated: "2026-08-03"
   Camps absents sota `partial` s'ometen visiblement, sense buit
   trencat. Botó d'eliminar per targeta. · *covers:* AC-02, AC-03,
   AC-05, AC-09 (base marcatge estructural per a teclat)
-- [ ] **T-18** — Crear la nova entrada de navegació de tercer nivell
+- [x] **T-18** — Crear la nova entrada de navegació de tercer nivell
   ("Idees") aplicant el token `--color-mel` (`#C99A3A`, ja aprovat a
   Stage 1.5) com a accent primari (subratllat `color.mel-hover` per a
   l'entrada activa), diferenciada visualment de l'accent verd molsa
   (NIU-1) i terracota (NIU-5); disposició en graella `auto-fill,
   minmax(240px, 1fr)` per a les targetes (`proposal.md` §8.2). ·
   *covers:* AC-07
-- [ ] **T-19** — Implementar la regió `aria-live="polite"` anunciant
+- [x] **T-19** — Implementar la regió `aria-live="polite"` anunciant
   "Desant idea, recuperant previsualització…" en enviar el formulari i
   la resolució final (èxit/parcial/fallada) en arribar per sondeig;
   navegació completa per teclat per afegir (enganxar+confirmar) i

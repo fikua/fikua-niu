@@ -36,12 +36,18 @@
      throttled connection. Preloading its modules here would defeat that
      deferral by fetching them just as eagerly regardless. They still
      load fast (same-origin, same server) once main.js's dynamic
-     import('./projects-view.js') runs. -->
+     import('./projects-view.js') runs.
+
+     NIU-6 NOTE: the ideas view's modules (ideas-api.js, ideas-store.js,
+     ideas-render.js, ideas-view.js) follow the exact same deferred
+     dynamic-import() treatment as the projects view above, for the same
+     reason — deliberately NOT preloaded here. -->
 <link rel="modulepreload" href="./js/api.js">
 <link rel="modulepreload" href="./js/a11y.js">
 <link rel="modulepreload" href="./js/flip.js">
 <link rel="modulepreload" href="./js/confetti.js">
 <link rel="modulepreload" href="./js/render.js">
+<link rel="modulepreload" href="./js/toast.js">
 <link rel="modulepreload" href="./js/store.js">
 <link rel="modulepreload" href="./js/tabs.js">
 <link rel="modulepreload" href="./js/shopping-view.js">
@@ -56,6 +62,7 @@
       <nav class="app-nav" aria-label="Seccions de Niu">
         <a class="app-nav-link is-active" href="/" data-route="/">🛒 Compra</a>
         <a class="app-nav-link" href="/projects" data-route="/projects">🏠 Projectes</a>
+        <a class="app-nav-link app-nav-link-mel" href="/ideas" data-route="/ideas">💡 Idees</a>
       </nav>
       <div class="header-right">
         <div class="user-chip" id="user-chip">
@@ -139,6 +146,29 @@
             <span class="error-msg" id="add-project-error" role="alert" hidden></span>
           </div>
         </div>
+      </section>
+    </main>
+
+    <!-- ============ Ideas view (route "/ideas", NIU-6) ============ -->
+    <main data-view="ideas" hidden>
+      <section class="box ideas-box" id="box-ideas" role="region" aria-label="Idees">
+        <div class="box-header">
+          <h2 class="box-title"><span aria-hidden="true">💡</span> Idees d'activitats</h2>
+          <span class="box-count" id="ideas-count">(0)</span>
+        </div>
+        <hr>
+
+        <div class="add-idea-form" id="add-idea-form">
+          <div class="add-input-group" id="add-idea-group">
+            <input type="url" id="add-idea-url" placeholder="+ enganxa un enllaç…" aria-label="Enllaç de l'activitat">
+            <button class="add-btn add-btn-mel" id="add-idea-btn" type="button">Desar</button>
+          </div>
+          <div class="add-footer">
+            <span class="error-msg" id="add-idea-error" role="alert" hidden></span>
+          </div>
+        </div>
+
+        <ul class="ideas-grid" id="ideas-grid"></ul>
       </section>
     </main>
 

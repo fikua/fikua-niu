@@ -37,14 +37,15 @@ import { initShoppingView, prefetchShoppingItems } from './shopping-view.js';
 
 // ================= Router =================
 //
-// Small hand-rolled client-side router for Niu's single-page shell. Two
-// routes only: "/" (shopping list) and "/projects" (home projects) — no
-// route params, no nested routes, no external library (design.md §8: no
-// build step, no framework).
+// Small hand-rolled client-side router for Niu's single-page shell.
+// Three routes: "/" (shopping list), "/projects" (home projects), and
+// "/ideas" (activity ideas, NIU-6) — no route params, no nested routes,
+// no external library (design.md §8: no build step, no framework).
 
 const ROUTES = {
   '/': { view: 'shopping', title: 'niu' },
   '/projects': { view: 'projects', title: 'niu — Projectes' },
+  '/ideas': { view: 'ideas', title: 'niu — Idees' },
 };
 
 function routeFor(pathname) {
@@ -177,6 +178,16 @@ async function main() {
   import('./projects-view.js').then(({ initProjectsView, prefetchProjectsList }) => {
     prefetchProjectsList();
     initProjectsView(me);
+  });
+
+  // NIU-6: same deferred-dynamic-import treatment as the projects view
+  // above — the ideas view's own module graph (ideas-store.js,
+  // ideas-render.js, ideas-api.js) and its GET /api/v1/ideas prefetch
+  // must not compete with the shopping view's critical first paint on a
+  // slow connection (NFR-06 budget, perf-3g.spec.js).
+  import('./ideas-view.js').then(({ initIdeasView, prefetchIdeasList }) => {
+    prefetchIdeasList();
+    initIdeasView(me);
   });
 }
 

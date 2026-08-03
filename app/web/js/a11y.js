@@ -50,6 +50,24 @@ export function announceProjectStateChange(projectName, state) {
   announce(`${projectName} ara està ${label}.`);
 }
 
+// announceIdeaSaving/announceIdeaResolved write the exact wording
+// required by proposal.md §8.6 (AC-01/AC-02/AC-03/AC-11): a "polite"
+// announcement when the add-idea form is submitted, and a second one
+// when the scrape resolves — success/partial share the same
+// "Idea desada" wording (§8.6), fallback gets its own explicit phrase so
+// a screen-reader user is never left assuming a silent failure.
+export function announceIdeaSaving() {
+  announce('Desant idea, recuperant previsualització…');
+}
+
+export function announceIdeaResolved(previewStatus) {
+  if (previewStatus === 'failed') {
+    announce('Idea desada sense previsualització.');
+  } else {
+    announce('Idea desada.');
+  }
+}
+
 // wireRowFocusTabindex used to manage the delete button's `tabindex`
 // dynamically so it would only join the tab order while its row had
 // focus. That approach relied on the row ITSELF being the sole
