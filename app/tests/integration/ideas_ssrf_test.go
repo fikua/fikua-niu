@@ -137,27 +137,35 @@ func TestFetchPreview_DenylistedHostname_Rejected_NoDNSOrTCP(t *testing.T) {
 	}
 }
 
-// ---- T-27c: [F-01 regression] redirect to the SAME host toward a forbidden IP ----
+// ---- T-27c: same-host redirect chain toward a forbidden IP is rejected on the FIRST hop ----
 //
-// This is deliberately NOT a generic cross-host redirect test (tasks.md
-// explicitly warns that would not detect F-01). The scenario mirrors the
-// exact shape security-engineer found exploitable: a same-host redirect
-// chain where a later hop's destination must still be validated.
-// Because any locally-bindable listener is loopback, and loopback is
-// itself a forbidden destination, this test's own assertion is that hop
-// 0 is rejected BEFORE any TCP connection completes (accepted count ==
-// 0) and the later hops are consequently never reached at all — proving
-// ControlContext runs on the very first dial attempt of a same-host
-// chain, not skipped due to some pre-existing connection.
+// F-11 (review.md, /audit NIU-6): this test does NOT itself detect the
+// F-01 regression its former name claimed to cover. Confirmed by
+// mutation testing during audit — reverting DisableKeepAlives to false
+// (reintroducing F-01) still passes this test unchanged, because the
+// destination here is loopback, and loopback is rejected by
+// ControlContext on the very FIRST dial attempt: the redirect chain
+// never progresses far enough to exercise connection reuse at all (hop
+// 1/2 are consequently never reached — accepted count == 0). Proving
+// "0 hops reached" cannot, by construction, also prove "every hop that
+// WAS reached triggered a fresh dial" — that would require a
+// destination the chain is allowed to actually traverse, which black-box
+// tests in this package cannot arrange without a dialer/ControlContext
+// injection seam fetchsafe does not currently expose (adding one purely
+// for this test was judged more invasive than worth it here — see
+// review.md F-11 option (b)).
 //
-// The specific F-01 defect (DisableKeepAlives reverted, letting hop 2+ of
-// a same-host chain reuse hop 1's already-validated connection and skip
-// ControlContext) is additionally covered directly and unconditionally by
-// TestNewTransport_DisableKeepAlivesTrue (client_test.go, same package) —
-// a literal-code assertion on the Transport construction itself, which
-// cannot be satisfied by accident and fails immediately if the flag is
-// ever removed or defaulted back to false.
-func TestFetchPreview_RedirectToSameHost_EachHopReDialed_F01Regression(t *testing.T) {
+// What this test DOES prove, and is named/documented for accordingly:
+// a same-host redirect chain whose destination is loopback is blocked
+// before connect() completes on the very first hop, with zero hops
+// silently let through.
+//
+// F-01's REAL regression guard — the one that fails immediately and
+// unconditionally if DisableKeepAlives is ever reverted or refactored
+// away — is TestNewTransport_DisableKeepAlivesTrue (client_test.go, same
+// package): a literal-code assertion on the Transport construction
+// itself, which this test cannot substitute for.
+func TestFetchPreview_RedirectToSameHost_FirstHopRejectedBeforeConnect(t *testing.T) {
 	const hops = 3
 	var hitCount int64
 
