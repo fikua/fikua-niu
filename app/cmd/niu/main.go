@@ -2,8 +2,10 @@
 // (/api/v1/*) and the static frontend (embedded web/) from the same
 // process (PLAN.md §2.1). Wiring order: config → store → credential seed →
 // items.Service → projects.Service (NIU-5, same *Store/config/
-// authenticator, no change to items' wiring) → auth.PasswordAuthenticator
-// → cleanup goroutine → httpapi.NewRouter (design.md §5/§6.2, T-19).
+// authenticator, no change to items' wiring) → fetchsafe.NewClient +
+// ideas worker pool + ideas.Service (NIU-6, tasks.md T-08/T-14) →
+// auth.PasswordAuthenticator → cleanup goroutine → httpapi.NewRouter
+// (design.md §5/§6.2, T-19).
 package main
 
 import (
@@ -22,7 +24,9 @@ import (
 	niu "niu"
 	"niu/internal/auth"
 	"niu/internal/config"
+	"niu/internal/fetchsafe"
 	"niu/internal/httpapi"
+	"niu/internal/ideas"
 	"niu/internal/items"
 	"niu/internal/projects"
 	"niu/internal/store"
@@ -61,6 +65,30 @@ func run() error {
 	projectsRepo := store.NewProjectsRepository(st.DB)
 	projectsSvc := projects.NewService(projectsRepo, projectsRepo)
 
+	// ctx/stop is the process' own shutdown context — cancelled on
+	// SIGINT/SIGTERM. The ideas worker pool (ADR-03, T-08) is deliberately
+	// wired against THIS context, never a per-request context: a scrape
+	// must keep running after the POST that queued it has already
+	// responded, and must only stop when the whole process is shutting
+	// down.
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer stop()
+
+	ideasRepo := store.NewIdeasRepository(st.DB)
+	fetchsafeClient := fetchsafe.NewClient()
+	ideasPool := ideas.NewWorkerPool(ctx)
+	defer ideasPool.Close()
+	ideasFetch := func(fetchCtx context.Context, rawURL string) (ideas.Preview, error) {
+		preview, err := fetchsafe.FetchPreview(fetchCtx, fetchsafeClient, rawURL)
+		return ideas.Preview{
+			Title:       preview.Title,
+			ImageURL:    preview.ImageURL,
+			Description: preview.Description,
+			Partial:     preview.Partial,
+		}, err
+	}
+	ideasSvc := ideas.NewService(ideasRepo, ideasRepo, ideasFetch, ideasPool)
+
 	authenticator, err := auth.NewPasswordAuthenticator(st.DB, cfg.SessionSecret)
 	if err != nil {
 		return err
@@ -72,10 +100,8 @@ func run() error {
 	}
 
 	cookiesSecure := cfg.Env != "development"
-	router := httpapi.NewRouter(svc, projectsSvc, st, authenticator, webFS, cookiesSecure)
+	router := httpapi.NewRouter(svc, projectsSvc, ideasSvc, st, authenticator, webFS, cookiesSecure)
 
-	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
-	defer stop()
 	startCleanupLoop(ctx, authenticator)
 
 	addr := ":" + cfg.Port

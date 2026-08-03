@@ -1,11 +1,13 @@
-// projects-main.js — entry point for web/projects.html: event wiring for
-// the add form and state buttons, immediate syncProjectsFromServer() +
-// setInterval(10000) + window focus listener (same cycle already wired
-// in main.js for items — no second sync mechanism, AC-06), and
-// GET /api/v1/me on load.
+// projects-view.js — projects view: event wiring for the add form and
+// state buttons, and the syncProjectsFromServer() poll cycle (same 10s
+// cycle already used by shopping-view.js for items — no second sync
+// mechanism, AC-06).
+//
+// Split out of the old projects-main.js (single-page-per-route era) so
+// the SPA bootstrap in main.js can mount this view without also owning
+// identity resolution — GET /api/v1/me now happens exactly once, in
+// main.js, not once per view.
 
-import * as api from './projects-api.js';
-import { initAnnounce } from './a11y.js';
 import {
   initProjectsStore,
   addProjectOptimistic,
@@ -16,7 +18,6 @@ import {
   prefetchProjects,
 } from './projects-store.js';
 import { dismissToast } from './projects-render.js';
-import { logout } from './auth.js';
 import { t } from './strings.js';
 
 const POLL_INTERVAL_MS = 10000;
@@ -33,22 +34,12 @@ function validateNameClientSide(raw) {
   return { ok: true, name: trimmed };
 }
 
-async function main() {
-  // Same rationale as main.js: resolve identity before mounting any UI;
-  // kick off GET /api/v1/projects in parallel with GET /api/v1/me so the
-  // two share one round trip's worth of latency (NFR-06 budget).
-  prefetchProjects();
-
-  let me;
-  try {
-    me = await api.getMe();
-  } catch {
-    return;
-  }
-
-  const liveRegion = document.getElementById('live-region');
-  initAnnounce(liveRegion);
-
+// initProjectsView() mounts the projects view: wires its DOM controls,
+// kicks off the immediate sync + 10s poll + focus refetch. Called once at
+// bootstrap, regardless of which view is initially visible — polling
+// keeps running for the view you are not looking at (design.md §5, same
+// rationale as shopping-view.js).
+export function initProjectsView(me) {
   initProjectsStore({
     onChangeState: (id, state) => changeProjectState(id, state),
     onDelete: (id) => deleteProjectOptimistic(id),
@@ -56,17 +47,18 @@ async function main() {
 
   wireAddForm();
   wireToastDismiss();
-  wireLogoutButton();
 
   setCurrentUserId(me.id);
-  const nameEl = document.getElementById('user-name');
-  const avatarEl = document.getElementById('user-avatar');
-  if (nameEl) nameEl.textContent = me.display_name;
-  if (avatarEl) avatarEl.textContent = me.avatar_emoji;
 
   syncProjectsFromServer();
   setInterval(syncProjectsFromServer, POLL_INTERVAL_MS);
   window.addEventListener('focus', syncProjectsFromServer);
+}
+
+// prefetchProjectsList() lets main.js kick off GET /api/v1/projects
+// concurrently with GET /api/v1/me, before initProjectsView() runs.
+export function prefetchProjectsList() {
+  prefetchProjects();
 }
 
 function wireAddForm() {
@@ -131,13 +123,3 @@ function wireToastDismiss() {
     }
   });
 }
-
-function wireLogoutButton() {
-  const btn = document.getElementById('logout-btn');
-  if (!btn) return;
-  btn.addEventListener('click', () => {
-    logout();
-  });
-}
-
-main();

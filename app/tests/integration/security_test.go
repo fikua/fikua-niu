@@ -5,6 +5,7 @@ import (
 	"runtime"
 	"strings"
 	"testing"
+	"time"
 )
 
 // T-28 — S3a/S3b/S7/S8/EC-08/EC-09/EC-10.
@@ -308,3 +309,160 @@ func TestProjects_Unauthenticated_Rejected(t *testing.T) {
 		}
 	}
 }
+
+// ---- NIU-6 T-27 — same security patterns applied to /api/v1/ideas, plus
+// XSS/SQLi via RECOVERED metadata (not just user-typed input) ----
+
+// EC-11/NFR-01: an XSS payload in the user-typed URL is stored literally
+// — the API layer never interprets it as HTML. This mirrors
+// TestXSSPayload_StoredLiterally/TestProjects_XSSPayload_StoredLiterally,
+// reusing the exact same pattern (never a new test harness).
+func TestIdeas_XSSPayloadInURL_StoredLiterally(t *testing.T) {
+	srv := newIdeasHTTPTestServer(t, seedUserAID)
+
+	// The URL itself must still parse as http(s) to reach storage at all
+	// (AC-08/EC-01) — the payload rides in the query string, a realistic
+	// vector since the URL is echoed back verbatim in the response
+	// (design.md §6.1: url is always present).
+	payload := "https://example.com/?x=%3Cimg%20src=x%20onerror=alert(1)%3E"
+	created := createIdea(t, srv.Server, payload)
+	if created.URL != payload {
+		t.Fatalf("stored url = %q, want literal payload %q", created.URL, payload)
+	}
+
+	list := listIdeas(t, srv.Server)
+	if len(list) != 1 || list[0].URL != payload {
+		t.Fatalf("GET /ideas url = %+v, want literal payload preserved", list)
+	}
+}
+
+// EC-11/NFR-01: an XSS payload arriving via RECOVERED metadata (title,
+// not user input at all) must also be stored/served literally — this is
+// the vector unique to this space (proposal.md/tasks.md T-27): a
+// malicious THIRD-PARTY page controls og:title, not the Niu user.
+func TestIdeas_XSSPayloadInRecoveredTitle_StoredLiterally(t *testing.T) {
+	mock := newMockPreviewServer(t)
+	payload := "<img src=x onerror=alert(1)>"
+	mock.SetOpenGraph(payload, "", "")
+
+	srv := newIdeasHTTPTestServer(t, seedUserAID)
+	created := createIdea(t, srv.Server, mock.URL)
+	resolved := waitForIdeaStatusOn(t, srv, created.ID, 2*time.Second)
+
+	if resolved.Title == nil || *resolved.Title != payload {
+		t.Fatalf("resolved title = %v, want literal payload %q (server-side half of EC-11 — "+
+			"the frontend's textContent-only rendering, verified by the E2E suite, covers the rest)", resolved.Title, payload)
+	}
+}
+
+// EC-12/NFR-02: a SQL-injection-shaped value in the user-typed URL is
+// stored literally, and the activity_ideas table (and the rest of the
+// schema) survives intact.
+func TestIdeas_SQLInjectionPayloadInURL_StoredLiterally_TableSurvives(t *testing.T) {
+	srv := newIdeasHTTPTestServer(t, seedUserAID)
+	mock := newMockPreviewServer(t)
+	createIdea(t, srv.Server, mock.URL) // one legitimate row first
+
+	payload := "https://example.com/?q='; DROP TABLE activity_ideas;--"
+	created := createIdea(t, srv.Server, payload)
+	if created.URL != payload {
+		t.Fatalf("stored url = %q, want literal payload %q", created.URL, payload)
+	}
+
+	list := listIdeas(t, srv.Server)
+	if len(list) != 2 {
+		t.Fatalf("activity_ideas after injection attempt = %+v, want 2 rows (table intact)", list)
+	}
+	var one int
+	if err := srv.Store.DB.QueryRow(
+		"SELECT 1 FROM sqlite_master WHERE type='table' AND name='activity_ideas'",
+	).Scan(&one); err != nil {
+		t.Fatalf("activity_ideas table missing after injection attempt: %v", err)
+	}
+}
+
+// EC-12/NFR-02: a SQL-injection-shaped value arriving via RECOVERED
+// metadata (description, not user input) must also be stored literally
+// without harming the schema — the vector unique to this space.
+func TestIdeas_SQLInjectionPayloadInRecoveredMetadata_StoredLiterally_TableSurvives(t *testing.T) {
+	mock := newMockPreviewServer(t)
+	payload := "'; DROP TABLE activity_ideas;--"
+	mock.SetOpenGraph("T", "", payload)
+
+	srv := newIdeasHTTPTestServer(t, seedUserAID)
+	created := createIdea(t, srv.Server, mock.URL)
+	resolved := waitForIdeaStatusOn(t, srv, created.ID, 2*time.Second)
+
+	if resolved.Description == nil || *resolved.Description != payload {
+		t.Fatalf("resolved description = %v, want literal payload %q", resolved.Description, payload)
+	}
+	var one int
+	if err := srv.Store.DB.QueryRow(
+		"SELECT 1 FROM sqlite_master WHERE type='table' AND name='activity_ideas'",
+	).Scan(&one); err != nil {
+		t.Fatalf("activity_ideas table missing after injection attempt via recovered metadata: %v", err)
+	}
+}
+
+// EC-13/NFR-03: no GET route under /api/v1/ideas has a mutating effect —
+// GET never creates or deletes. (The static route-table half of this
+// check — confirming NO GET handler is even registered for a mutating
+// path — lives in router_test.go's TestNoMutatingGETRoutes, extended for
+// NIU-6.)
+func TestIdeas_NoMutationViaGET(t *testing.T) {
+	srv := newIdeasHTTPTestServer(t, seedUserAID)
+	mock := newMockPreviewServer(t)
+	createIdea(t, srv.Server, mock.URL)
+	before := listIdeas(t, srv.Server)
+
+	res, err := http.Get(srv.URL + "/api/v1/ideas")
+	if err != nil {
+		t.Fatalf("GET /ideas: %v", err)
+	}
+	if res.StatusCode != http.StatusOK {
+		t.Fatalf("GET /ideas status = %d, want 200", res.StatusCode)
+	}
+
+	after := listIdeas(t, srv.Server)
+	if len(before) != len(after) {
+		t.Fatalf("GET /ideas changed idea count: before=%d after=%d", len(before), len(after))
+	}
+}
+
+// EC-14/NFR-04: a request without a valid session cookie against any
+// endpoint in this space is rejected as unauthenticated, exactly the same
+// mechanism as every other endpoint — no exception carved out for
+// /ideas.
+func TestIdeas_Unauthenticated_Rejected(t *testing.T) {
+	srv := newAuthTestServer(t)
+
+	endpoints := []struct {
+		method string
+		path   string
+		body   any
+	}{
+		{http.MethodGet, "/api/v1/ideas", nil},
+		{http.MethodPost, "/api/v1/ideas", map[string]string{"url": "https://example.com"}},
+		{http.MethodDelete, "/api/v1/ideas/1", nil},
+	}
+
+	for _, ep := range endpoints {
+		res := doJSONWithCookie(t, ep.method, srv.URL+ep.path, "", "", ep.body)
+		if res.StatusCode != http.StatusUnauthorized {
+			t.Errorf("%s %s without session cookie status = %d, want 401", ep.method, ep.path, res.StatusCode)
+		}
+		var body errorResponse
+		decodeJSON(t, res, &body)
+		if body.Error.Code != "unauthenticated" {
+			t.Errorf("%s %s error code = %q, want unauthenticated", ep.method, ep.path, body.Error.Code)
+		}
+	}
+}
+
+// NFR-08 (header inspection on a real outgoing fetch) is covered directly
+// in internal/fetchsafe/fetchsafe_test.go's
+// TestFetchPreview_NoAuthHeaders_RealRequestInspection, which intercepts
+// the actual *http.Request FetchPreview sends by swapping in a
+// RoundTripper — that test can reach a real (non-loopback-rejected)
+// request because RoundTripper-level interception happens independently
+// of ControlContext's dial-time IP validation. Not duplicated here.

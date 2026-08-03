@@ -25,7 +25,7 @@ async function tabUntilFocused(page, locator, maxPresses = 200) {
 // device.
 test('add, change state and delete a project using only the keyboard', async ({ page }) => {
   const name = uniqueProjectName('Keyboard');
-  await page.goto('/projects.html');
+  await page.goto('/projects');
 
   // Add via keyboard: focus input, type, Enter.
   await page.locator('#add-project-name').focus();
@@ -81,7 +81,7 @@ test('aria-live announces the exact state-change wording for a local action', as
 // EC-14 — first use / zero projects shows a clear "no projects yet"
 // message, never an error or a bare empty table.
 test('empty state shows a clear message, no error', async ({ page }) => {
-  await page.goto('/projects.html');
+  await page.goto('/projects');
 
   const rows = page.locator('.project-row');
   const rowCount = await rows.count();
@@ -109,7 +109,7 @@ test.describe('mobile viewport', () => {
 
   test('mobile viewport supports add/change-state/delete', async ({ page }) => {
     const name = uniqueProjectName('Mobile');
-    await page.goto('/projects.html');
+    await page.goto('/projects');
 
     await page.fill('#add-project-name', name);
     await page.click('#add-project-btn');

@@ -224,3 +224,58 @@ func TestCSRF_Projects_DeleteWithoutToken_Rejected(t *testing.T) {
 		t.Fatal("project disappeared despite missing CSRF token on DELETE")
 	}
 }
+
+// F-03: /api/v1/ideas had zero dedicated CSRF test coverage — the
+// protection was correctly wired in router.go (RequireCSRF, identical to
+// /items and /projects) but untested, the same defect class NIU-5's
+// F-21 already fixed once for /projects. Mirrors
+// TestCSRF_Projects_PostWithoutToken_Rejected/
+// TestCSRF_Projects_DeleteWithoutToken_Rejected exactly.
+
+func TestCSRF_Ideas_PostWithoutToken_Rejected(t *testing.T) {
+	srv := newAuthTestServer(t)
+	login := doLogin(t, srv, testUsernameA, testPasswordA)
+	if login.StatusCode != http.StatusOK {
+		t.Fatalf("login status = %d, want 200", login.StatusCode)
+	}
+
+	res := doJSONWithCookie(t, http.MethodPost, srv.URL+"/api/v1/ideas", login.SessionToken, "",
+		map[string]string{"url": "https://example.com/no-hauria-existir"})
+	defer res.Body.Close()
+
+	if res.StatusCode != http.StatusForbidden {
+		t.Fatalf("POST /ideas without a CSRF token status = %d, want 403", res.StatusCode)
+	}
+
+	for _, idea := range listIdeasAuthenticated(t, srv, login) {
+		if idea.URL == "https://example.com/no-hauria-existir" {
+			t.Fatalf("idea %q exists despite the mutation that created it being rejected", idea.URL)
+		}
+	}
+}
+
+func TestCSRF_Ideas_DeleteWithoutToken_Rejected(t *testing.T) {
+	srv := newAuthTestServer(t)
+	login := doLogin(t, srv, testUsernameA, testPasswordA)
+	if login.StatusCode != http.StatusOK {
+		t.Fatalf("login status = %d, want 200", login.StatusCode)
+	}
+
+	created := createIdeaAuthenticated(t, srv, login, "https://example.com/idea-per-eliminar")
+
+	res := doJSONWithCookie(t, http.MethodDelete, srv.URL+"/api/v1/ideas/"+strconv.FormatInt(created.ID, 10), login.SessionToken, "", nil)
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusForbidden {
+		t.Fatalf("DELETE /ideas without CSRF token status = %d, want 403", res.StatusCode)
+	}
+
+	found := false
+	for _, idea := range listIdeasAuthenticated(t, srv, login) {
+		if idea.ID == created.ID {
+			found = true
+		}
+	}
+	if !found {
+		t.Fatal("idea disappeared despite missing CSRF token on DELETE")
+	}
+}

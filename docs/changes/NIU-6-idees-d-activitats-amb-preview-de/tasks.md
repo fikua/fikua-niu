@@ -59,7 +59,7 @@ updated: "2026-08-03"
 
 ### Foundations
 
-- [ ] **T-01** — Escriure la migració goose
+- [x] **T-01** — Escriure la migració goose
   `app/migrations/00X_activity_ideas.sql` (número següent al de la
   migració `projects` d'NIU-5) amb el DDL exacte de `design.md` §6.2:
   taula `activity_ideas` (`id`, `url NOT NULL`, `title`, `image_url`,
@@ -70,7 +70,7 @@ updated: "2026-08-03"
   sobre `url` (EC-06, deduplicació fora d'abast). Totes les consultes
   futures sobre aquesta taula usaran paràmetres vinculats, mai
   `fmt.Sprintf` cap a SQL. · *covers:* NFR-02 (base)
-- [ ] **T-02** — Definir el domini `internal/ideas`: tipus `Idea`
+- [x] **T-02** — Definir el domini `internal/ideas`: tipus `Idea`
   (`ID`, `URL`, `Title *string`, `ImageURL *string`, `Description
   *string`, `PreviewStatus`, `AddedBy items.User`, `CreatedAt`),
   interfícies `Repository` (`Create`, `Get`, `List`, `UpdatePreview`,
@@ -87,19 +87,19 @@ updated: "2026-08-03"
 > cadascuna com present al codi sense haver-la de deduir d'una tasca
 > genèrica "implementar fetchsafe".
 
-- [ ] **T-03** — Crear `internal/fetchsafe` amb la signatura pública
+- [x] **T-03** — Crear `internal/fetchsafe` amb la signatura pública
   única `FetchPreview(ctx context.Context, rawURL string) (Preview,
   error)` i els errors tipats (`ErrSchemeRejected`,
   `ErrDestinationForbidden`, `ErrTimeout`, `ErrResponseTooLarge`,
   `ErrUnsupportedContentType`). Cap altre paquet de l'aplicació pot
   importar `net/http` per fer una petició cap a una URL controlada per
   l'usuari (design.md §4, R-01). · *covers:* AC-01 (base), AC-02 (base)
-- [ ] **T-03a** — Implementar la validació d'esquema (NFR-05/EC-01):
+- [x] **T-03a** — Implementar la validació d'esquema (NFR-05/EC-01):
   `url.Parse` + comprovació `scheme == "http" || scheme == "https"`
   **abans** de qualsevol activitat de xarxa; rebutjar `file://`,
   `javascript:`, `ftp://`, `data:`, esquema buit amb
   `ErrSchemeRejected`, zero peticions de xarxa. · *covers:* NFR-05
-- [ ] **T-03b** — Implementar la denylist de noms d'amfitrió
+- [x] **T-03b** — Implementar la denylist de noms d'amfitrió
   (NFR-06 — F-03/F-04), comprovada **abans i independentment** de
   qualsevol resolució DNS: `niu.fikua.com` (hardcoded) + valor de
   `NIU_PUBLIC_HOST` (variable d'entorn) + noms de servei coneguts de la
@@ -108,7 +108,7 @@ updated: "2026-08-03"
   sobre el host de la URL; si coincideix, `ErrDestinationForbidden`
   immediat sense cap crida DNS. · *covers:* NFR-06 (base — vector edge
   públic)
-- [ ] **T-03c** — Construir el `net.Dialer` amb `ControlContext` (no
+- [x] **T-03c** — Construir el `net.Dialer` amb `ControlContext` (no
   `Control`) com a **únic** punt de validació d'IP (NFR-06/EC-02/EC-07)
   — **no** afegir cap crida separada a
   `net.DefaultResolver.LookupIPAddr` abans o en paral·lel (rebutjat
@@ -123,7 +123,7 @@ updated: "2026-08-03"
   `IsGlobalUnicast()`. Si `ControlContext` retorna error, `DialContext`
   avorta abans del `connect()`. · *covers:* NFR-06 (mecanisme central —
   EC-02/EC-07)
-- [ ] **T-03d** — Configurar `http.Transport` dedicat amb
+- [x] **T-03d** — Configurar `http.Transport` dedicat amb
   `DisableKeepAlives: true` (F-01/F-06) — sense aquesta opció, una
   cadena de redireccions cap al mateix host reutilitza la connexió TCP
   ja oberta i mai torna a cridar `DialContext`/`ControlContext`,
@@ -131,7 +131,7 @@ updated: "2026-08-03"
   empíricament per `security-engineer`: 4 salts → 1 sola invocació de
   `Control` sense aquesta opció). · *covers:* NFR-06 (defensa —
   connexions reutilitzades)
-- [ ] **T-03e** — Implementar `http.Client.CheckRedirect` amb **dues**
+- [x] **T-03e** — Implementar `http.Client.CheckRedirect` amb **dues**
   responsabilitats explícites (NFR-06/EC-04, esmenat F-01): (a) limitar
   la cadena a **5 salts** (error propi passats els 5); (b) re-validar
   explícitament dins de `CheckRedirect` que l'esquema de la següent URL
@@ -140,19 +140,19 @@ updated: "2026-08-03"
   capa addicional, no substitueix la validació d'IP de T-03c. ·
   *covers:* NFR-06 (defensa en profunditat — redireccions), NFR-07
   (límit de salts)
-- [ ] **T-03f** — Configurar el `context.WithTimeout(ctx, 5*time.Second)`
+- [x] **T-03f** — Configurar el `context.WithTimeout(ctx, 5*time.Second)`
   que embolcalla tota la crida `FetchPreview` (DNS + connexió + TLS +
   capçaleres + cos), no només `http.Client.Timeout` (que es manté com a
   xarxa de seguretat de segon nivell) — un servidor que respon
   capçaleres de seguida però allarga el cos indefinidament també queda
   tallat als 5s. · *covers:* NFR-07 (timeout, EC-08)
-- [ ] **T-03g** — Implementar el límit de mida en streaming: 2 MiB via
+- [x] **T-03g** — Implementar el límit de mida en streaming: 2 MiB via
   `io.LimitReader(resp.Body, 2<<20)` aplicat **abans** de passar el
   lector al parser HTML, mai `io.ReadAll(resp.Body)` sense límit. Si el
   `LimitReader` talla el contingut abans d'acabar el `<head>`, tractar
   com a fallback (no com a error fatal del procés). · *covers:* NFR-07
   (límit de mida, EC-03)
-- [ ] **T-03h** — Construir el `http.Client` dedicat de `fetchsafe` a
+- [x] **T-03h** — Construir el `http.Client` dedicat de `fetchsafe` a
   l'arrencada de l'app (una sola instància reutilitzada, no un client
   nou per petició), sense cap `Cookie`/`Authorization`/secret de Niu
   adjunt; l'única capçalera pròpia és un `User-Agent` identificable
@@ -161,7 +161,7 @@ updated: "2026-08-03"
 
 ### Implementation — parsing Open Graph (ADR-04)
 
-- [ ] **T-04** — Implementar el parsing Open Graph amb
+- [x] **T-04** — Implementar el parsing Open Graph amb
   `golang.org/x/net/html` (afegir dependència al `go.mod`): tokenitzar
   el flux HTML ja limitat pel `LimitReader` de T-03g, aturar-se en
   trobar el tancament de `<head>`, extreure `og:title`, `og:image`,
@@ -172,20 +172,20 @@ updated: "2026-08-03"
 
 ### Implementation — `internal/ideas` (servei + repositori)
 
-- [ ] **T-05** — Implementar `ideas.Service.Add(ctx, userID, rawURL)`:
+- [x] **T-05** — Implementar `ideas.Service.Add(ctx, userID, rawURL)`:
   validar format sintàctic de URL i rebutjar buit/només-espais
   (EC-10); validar **només l'esquema** (`http`/`https`, NFR-05/EC-01,
   reutilitzant la mateixa comprovació barata que T-03a exposa, sense
   cap petició de xarxa encara). Si l'esquema no és vàlid, retornar
   `ErrSchemeRejected` sense crear cap fila. · *covers:* AC-01 (base),
   EC-01, EC-10
-- [ ] **T-06** — Completar `ideas.Service.Add`: si el format és vàlid,
+- [x] **T-06** — Completar `ideas.Service.Add`: si el format és vàlid,
   `Repository.Create` insereix la fila amb `preview_status='pending'`,
   camps de previsualització `NULL`; escriure event `idea_added`;
   retornar la idea `pending` immediatament (ADR-03 — la resposta
   `201` no espera el scraping). · *covers:* AC-01, AC-02 (base creació
   immediata)
-- [ ] **T-07** — Implementar el worker pool acotat de scraping (ADR-03
+- [x] **T-07** — Implementar el worker pool acotat de scraping (ADR-03
   esmenat F-05): un semàfor amb buffer de capacitat configurable
   (interval 4–8, vegeu **T-07a** per al valor concret), alimentat per
   `Service.Add` després d'inserir la fila `pending`; cada worker crida
@@ -196,7 +196,7 @@ updated: "2026-08-03"
   final (`ready`/`partial`/`failed`); **mai reintent automàtic**
   (fora d'abast, `requirements.md` §7). · *covers:* AC-01, AC-02,
   AC-03
-- [ ] **T-07a** — **Confirmar i documentar el valor exacte de
+- [x] **T-07a** — **Confirmar i documentar el valor exacte de
   concurrència del worker pool dins del rang 4–8 fixat per ADR-03/R-08.**
   Triar un valor concret (p. ex. `6`) segons el consum de memòria
   observat per scrape en curs (~2 MiB retinguts per worker actiu, límit
@@ -207,19 +207,19 @@ updated: "2026-08-03"
   contenidor"). **No bloquejant per a `/audit`** (design.md §9), però
   ha de quedar reflectit al codi abans de tancar aquest ítem. · *covers:*
   NFR-07 (base — límit de concurrència/memòria)
-- [ ] **T-08** — Cablejar a `main.go` un `context.Background()` propi
+- [x] **T-08** — Cablejar a `main.go` un `context.Background()` propi
   per al worker pool (independent del context de cada petició HTTP) i
   assegurar un tancament ordenat del pool a l'aturada de l'app (ADR-03
   — el pool sobreviu la petició original que l'ha encuat). · *covers:*
   AC-06 (base — resolució en segon pla visible per sondeig)
-- [ ] **T-09** — Implementar `ideas.Service.Delete(ctx, userID, id)`:
+- [x] **T-09** — Implementar `ideas.Service.Delete(ctx, userID, id)`:
   `DELETE FROM activity_ideas WHERE id = ?` idempotent (`existed
   bool`, mateix patró que `items.Delete`/`projects.Delete`); escriure
   event `idea_deleted` només quan la fila existia; confirmar que un
   `UPDATE` de resolució de scraping en curs sobre un `id` ja eliminat
   no troba files i s'ignora silenciosament (Flux 3, sense cancel·lació
   explícita). · *covers:* AC-05
-- [ ] **T-10** — Estendre `internal/store` amb `IdeasRepository`,
+- [x] **T-10** — Estendre `internal/store` amb `IdeasRepository`,
   implementant `ideas.Repository` i `ideas.EventSink` (delegant
   `Record` a la taula `events` ja existent, cap columna ni tipus nou).
   Implementar `Create` (insereix `pending`), `Get`, `List` (consulta
@@ -229,7 +229,7 @@ updated: "2026-08-03"
 
 ### Implementation — HTTP layer
 
-- [ ] **T-11** — Implementar handlers `GET/POST /api/v1/ideas` i
+- [x] **T-11** — Implementar handlers `GET/POST /api/v1/ideas` i
   `DELETE /api/v1/ideas/{id}` a nou fitxer
   `internal/httpapi/ideas_handlers.go`: deserialitzar/serialitzar JSON,
   delegar a `ideas.Service`, mapar `ErrSchemeRejected`/error de format
@@ -238,12 +238,12 @@ updated: "2026-08-03"
   prohibit" — coherent amb NFR-06 "missatge clar sense revelar detalls
   interns"). `DELETE` respon sempre `204` (EC-15, idempotent). ·
   *covers:* AC-04
-- [ ] **T-12** — Estendre `internal/httpapi/dto.go` amb `ideaDTO`
+- [x] **T-12** — Estendre `internal/httpapi/dto.go` amb `ideaDTO`
   (mapeig `Idea`→JSON amb la forma exacta de `design.md` §6.1: `id`,
   `url` sempre present, `title`/`image_url`/`description` (`null` si
   `pending`/`failed`, o el camp concret si falta sota `partial`),
   `preview_status`, `added_by`, `created_at`). · *covers:* AC-01, AC-03
-- [ ] **T-13** — **Modificar `router.go`** (canvi quirúrgic, no
+- [x] **T-13** — **Modificar `router.go`** (canvi quirúrgic, no
   reescriptura): registrar el nou grup de rutes `/api/v1/ideas` dins
   del `r.Route("/api/v1", ...)` ja existent, reutilitzant
   `WithCurrentUser` (ja muntat al grup) i `RequireCSRF` per a
@@ -251,7 +251,7 @@ updated: "2026-08-03"
   `Add`/`Delete`. **`items_handlers.go`, `projects_handlers.go`,
   `auth_handlers.go`, `csrf.go` no es toquen.** · *covers:* AC-05 (base
   eliminar via API)
-- [ ] **T-14** — Afegir a `cmd/niu/main.go` el wiring de
+- [x] **T-14** — Afegir a `cmd/niu/main.go` el wiring de
   `ideas.Service` + `store.IdeasRepository` + el client HTTP dedicat de
   `fetchsafe` (T-03h) + el worker pool acotat (T-07/T-08), cablejat amb
   el mateix `*Store`/`config`/`authenticator` ja construïts — cap canvi
@@ -260,19 +260,19 @@ updated: "2026-08-03"
 
 ### Implementation — frontend
 
-- [ ] **T-15** — Crear `app/web/js/ideas-api.js` (o estendre `api.js`):
+- [x] **T-15** — Crear `app/web/js/ideas-api.js` (o estendre `api.js`):
   fetch wrappers `getIdeas()`, `addIdea(url)`, `deleteIdea(id)`,
   reutilitzant exactament el mateix patró (capçalera CSRF,
   `handleUnauthenticated()`) que els wrappers d'`items`/`projects` ja
   existents. · *covers:* AC-04 (base transport)
-- [ ] **T-16** — Crear `app/web/js/ideas-store.js` (o estendre
+- [x] **T-16** — Crear `app/web/js/ideas-store.js` (o estendre
   `store.js`): estat en memòria (`ideas` array),
   `syncIdeasFromServer()` seguint exactament el mateix cicle de
   `syncFromServer()` ja implementat per `items`/`projects` (sondeig
   ~10s + refetch-on-focus, sense inventar un segon mecanisme). ·
   *covers:* AC-01, AC-02, AC-03, AC-11 (base — dades disponibles per a
   l'anunci `aria-live`)
-- [ ] **T-17** — Crear `app/web/js/ideas-render.js` (o estendre
+- [x] **T-17** — Crear `app/web/js/ideas-render.js` (o estendre
   `render.js`): implementar `AddLinkInput` (§8.3 de `proposal.md`) i
   `IdeaCard` amb els **quatre estats** A (`ready`) / B (`failed`) / C
   (`partial`) / D (`pending`, "Recuperant…") mapejats exactament als
@@ -283,14 +283,14 @@ updated: "2026-08-03"
   Camps absents sota `partial` s'ometen visiblement, sense buit
   trencat. Botó d'eliminar per targeta. · *covers:* AC-02, AC-03,
   AC-05, AC-09 (base marcatge estructural per a teclat)
-- [ ] **T-18** — Crear la nova entrada de navegació de tercer nivell
+- [x] **T-18** — Crear la nova entrada de navegació de tercer nivell
   ("Idees") aplicant el token `--color-mel` (`#C99A3A`, ja aprovat a
   Stage 1.5) com a accent primari (subratllat `color.mel-hover` per a
   l'entrada activa), diferenciada visualment de l'accent verd molsa
   (NIU-1) i terracota (NIU-5); disposició en graella `auto-fill,
   minmax(240px, 1fr)` per a les targetes (`proposal.md` §8.2). ·
   *covers:* AC-07
-- [ ] **T-19** — Implementar la regió `aria-live="polite"` anunciant
+- [x] **T-19** — Implementar la regió `aria-live="polite"` anunciant
   "Desant idea, recuperant previsualització…" en enviar el formulari i
   la resolució final (èxit/parcial/fallada) en arribar per sondeig;
   navegació completa per teclat per afegir (enganxar+confirmar) i
@@ -301,18 +301,18 @@ updated: "2026-08-03"
 
 ### Verification
 
-- [ ] **T-20** — Afegir tests unitaris a `internal/ideas`/`fetchsafe`
+- [x] **T-20** — Afegir tests unitaris a `internal/ideas`/`fetchsafe`
   per a la validació de format i esquema d'URL (AC-08/EC-01/EC-10):
   URL buida o només espais rebutjada (EC-10); esquemes `file://`,
   `javascript:`, `ftp://`, `data:` rebutjats sense cap petició de
   xarxa (EC-01/NFR-05). · *covers:* AC-08, EC-01, EC-10, NFR-05
-- [ ] **T-21** — Afegir test unitari de parsing Open Graph (AC-01/
+- [x] **T-21** — Afegir test unitari de parsing Open Graph (AC-01/
   AC-03/EC-05): HTML amb totes les etiquetes OG (èxit complet), HTML
   amb només algunes etiquetes (parcial, EC-05 camps absents), HTML
   sense cap etiqueta OG reconeguda o malformat (EC-05, tractat com a
   "no trobat", no com a crash de parsing). · *covers:* AC-01, AC-03,
   EC-05
-- [ ] **T-22** — Afegir tests d'integració contra un servidor HTTP de
+- [x] **T-22** — Afegir tests d'integració contra un servidor HTTP de
   test controlat (mock local, mai internet real — imprescindible per a
   tots els casos SSRF) per a EC-03/EC-08/EC-09: resposta de mida molt
   superior al límit de 2 MiB (EC-03, assert que la descàrrega s'atura i
@@ -321,20 +321,20 @@ updated: "2026-08-03"
   indefinida a la UI); `Content-Type` no HTML — PDF/imatge/vídeo
   (EC-09, assert que no s'intenta parsing OG). · *covers:* AC-02,
   EC-03, EC-08, EC-09, NFR-07
-- [ ] **T-23** — Afegir test d'integració per a AC-01/AC-04/AC-06 amb
+- [x] **T-23** — Afegir test d'integració per a AC-01/AC-04/AC-06 amb
   el servidor de test simulant OG complet: `POST` amb enllaç vàlid →
   `GET` posterior mostra la idea com a targeta amb títol/imatge/
   descripció, autoria visible, i persisteix després de "recarregar"
   (segona consulta `GET`). · *covers:* AC-01, AC-04, AC-08 (base
   contrast amb NIU-1/NIU-5)
-- [ ] **T-24** — Afegir test d'integració per a AC-02/AC-03 amb el
+- [x] **T-24** — Afegir test d'integració per a AC-02/AC-03 amb el
   servidor de test simulant un bloqueig d'accés (403), un timeout, i
   metadades OG parcials: assert que la idea es desa igualment en tots
   tres casos (mai error bloquejant), amb `preview_status` `failed` o
   `partial` segons el cas, i que el `POST` original no ha esperat el
   resultat del scraping (ADR-03, resposta `201` immediata). · *covers:*
   AC-02, AC-03
-- [ ] **T-25** — Afegir test d'integració per a AC-05/AC-09/EC-15/EC-16
+- [x] **T-25** — Afegir test d'integració per a AC-05/AC-09/EC-15/EC-16
   (`ideas_test.go`, mateix patró `newTestServer`/`doJSON` establert):
   `DELETE` elimina la idea de la llista i no reapareix en un `GET`
   posterior; doble `DELETE` sobre el mateix `id` idempotent sense 5xx
@@ -342,7 +342,7 @@ updated: "2026-08-03"
   idees independents sense 5xx ni estat corrupte (EC-16, documentat
   explícitament com a **no** idempotent, a diferència d'EC-15). ·
   *covers:* AC-05, AC-09, EC-15, EC-16
-- [ ] **T-26** — Afegir test d'integració amb dos clients simulats per
+- [x] **T-26** — Afegir test d'integració amb dos clients simulats per
   a AC-06/EC-06/EC-17: un client afegeix i un altre elimina una idea,
   el segon client veu la llista actualitzada (incloent-hi targetes amb
   previsualització i idees en fallback) en el següent `GET` (AC-06);
@@ -350,7 +350,7 @@ updated: "2026-08-03"
   entrades independents (EC-06); llista buida en primer ús mostra un
   estat visual clar sense error (EC-17, E2E complementari). · *covers:*
   AC-06, EC-06, EC-17
-- [ ] **T-27** — Afegir tests unitaris/integració de seguretat
+- [x] **T-27** — Afegir tests unitaris/integració de seguretat
   reutilitzant exactament els patrons ja escrits per NIU-1/NIU-4/NIU-5
   (`security_test.go`, `sql_static_test.go`) aplicats a
   `/api/v1/ideas`: enllaç o metadada recuperada amb marcatge HTML/script
@@ -366,7 +366,7 @@ updated: "2026-08-03"
   capçaleres d'autenticació de Niu presents (NFR-08). · *covers:*
   AC-10, EC-11, EC-12, EC-13, EC-14, NFR-01, NFR-02, NFR-03, NFR-04,
   NFR-08
-- [ ] **T-27a** — Afegir test d'integració dedicat per a EC-02/EC-07
+- [x] **T-27a** — Afegir test d'integració dedicat per a EC-02/EC-07
   (destí prohibit per IP literal o per resolució DNS): URL amb IP
   literal `127.0.0.1`/`10.x.x.x`/`169.254.x.x` rebutjada sense
   completar la petició (EC-02); domini que **resol** (via un
@@ -376,14 +376,14 @@ updated: "2026-08-03"
   explícit de **zero connexió TCP establerta** cap al destí en tots dos
   casos, no només un error de resposta. · *covers:* EC-02, EC-07,
   NFR-06
-- [ ] **T-27b** — Afegir test d'integració dedicat per a la denylist de
+- [x] **T-27b** — Afegir test d'integració dedicat per a la denylist de
   noms d'amfitrió (T-03b, F-03/F-04): URL apuntant a `niu.fikua.com` i
   a un nom configurat via `NIU_PUBLIC_HOST` de test, ambdues
   rebutjades **abans** de qualsevol resolució DNS (assert 0 peticions
   DNS/TCP sortints), diferenciant aquest mecanisme del de validació
   d'IP (T-03c) perquè una implementació futura no el pugui ballar per
   descuit. · *covers:* NFR-06
-- [ ] **T-27c** — **[Regressió F-01 — obligatori, no genèric] Afegir
+- [x] **T-27c** — **[Regressió F-01 — obligatori, no genèric] Afegir
   test d'integració de redirecció al MATEIX host cap a un destí
   prohibit (EC-04).** Muntar un servidor de test que respongui `200` a
   la primera validació i, en un segon salt, respongui des del **mateix
@@ -396,7 +396,7 @@ updated: "2026-08-03"
   s'oblidés en un canvi futur. **No confondre amb, ni substituir per,**
   un test de redirecció cross-host genèric — aquest últim NO detecta
   F-01. · *covers:* EC-04, NFR-06
-- [ ] **T-27d** — **[Regressió F-02 — obligatori, no genèric] Afegir
+- [x] **T-27d** — **[Regressió F-02 — obligatori, no genèric] Afegir
   test d'integració amb destí en forma IPv4-mapejada-a-IPv6
   (`::ffff:127.0.0.1` i/o `::ffff:169.254.169.254`).** Petició directa
   (o via redirecció) cap a una d'aquestes adreces; assert que es
@@ -407,13 +407,13 @@ updated: "2026-08-03"
   mapejada sense `Unmap()` previ. **No confondre amb, ni substituir
   per,** el test genèric d'IP literal `127.0.0.1` d'T-27a — aquest
   últim NO detecta F-02. · *covers:* EC-04, NFR-06
-- [ ] **T-27e** — Afegir test d'integració per a NFR-09 (cache
+- [x] **T-27e** — Afegir test d'integració per a NFR-09 (cache
   at-save-time): desar una idea contra el servidor de test, fer
   diverses lectures consecutives de `GET /api/v1/ideas`, assert que el
   comptador de peticions sortints del servidor de test roman en **1**
   independentment de quants `GET` es facin a la llista. · *covers:*
   NFR-09
-- [ ] **T-28** — Afegir test E2E (Playwright) per a AC-07/AC-09/AC-10/
+- [x] **T-28** — Afegir test E2E (Playwright) per a AC-07/AC-09/AC-10/
   AC-11 (`tests/e2e/specs/ideas.spec.js`): comparació visual amb NIU-1/
   NIU-5 confirmant diferenciació clara (AC-07); navegació completa per
   Tab/Enter per afegir un enllaç i eliminar una targeta sense ratolí
@@ -423,12 +423,12 @@ updated: "2026-08-03"
   totes les funcionalitats (EC-18). Documentar `overview.md` com a
   revisió manual d'AC-11 (revisió documental, no automatitzable). ·
   *covers:* AC-07, AC-09, AC-10, EC-18
-- [ ] **T-29** — Actualitzar `docs/overview.md` per esmentar l'espai
+- [x] **T-29** — Actualitzar `docs/overview.md` per esmentar l'espai
   d'idees d'activitats amb previsualització de link com a funcionalitat
   existent de Niu (llista simple sense estat, fallback no bloquejant,
   sense deduplicació d'enllaços), mantenint-lo com a font única de
   veritat del que fa l'app. · *covers:* AC-11
-- [ ] **T-30** — Executar `commands.test` (`cd app && go test ./...`),
+- [x] **T-30** — Executar `commands.test` (`cd app && go test ./...`),
   `commands.lint` (`gofmt -l`) i `commands.typecheck` (`cd app && go
   vet ./...`) del manifest de punta a punta; confirmar explícitament
   que els tres tests de regressió SSRF (T-27c, T-27d) i el test de
@@ -440,9 +440,9 @@ updated: "2026-08-03"
 
 ### Closing (universal — all changes)
 
-- [ ] **C-01** — Append changelog entry (`docs.changelog` from manifest)
+- [x] **C-01** — Append changelog entry (`docs.changelog` from manifest)
 - [ ] **C-02** — Transition backlog item to `Human Review` via the adapter
-- [ ] **C-03** — Propose semver bump (ASK USER — never apply unattended)
+- [x] **C-03** — Propose semver bump (ASK USER — never apply unattended) — v0.1.0 cut, approved by user
 
 ## 2. AC ↔ tasks traceability matrix
 

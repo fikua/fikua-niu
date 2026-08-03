@@ -43,6 +43,16 @@ afegit i qui l'ha actualitzat per últim cop, i admet opcionalment un
 pressupost (text lliure) i una data objectiu. Eliminar és l'única manera de
 treure un element de la llista — no hi ha cap estat "abandonat" diferenciat.
 
+Un tercer espai, també separat dels dos anteriors: **idees d'activitats**.
+Desa un enllaç (un restaurant, un pla, una activitat trobada navegant) i
+Niu en recupera automàticament el títol, la imatge i la descripció del
+lloc web enllaçat, mostrant-los com una targeta reconeixible. Quan la
+recuperació falla o triga (pàgines com Instagram sovint la bloquegen), la
+idea es desa igualment amb l'enllaç visible — mai un error que impedeixi
+desar-la. És una llista simple: només desar i eliminar, sense cap cicle de
+vida ni estat, i sense deduplicació — el mateix enllaç es pot desar més
+d'una vegada sense avís. Cada idea mostra qui l'ha afegit.
+
 ## Què no fa la v1
 
 Deliberadament fora d'abast:

@@ -18,8 +18,13 @@ test('navigation entry and accent colour clearly differ from the shopping list',
 
   const shoppingBorderColor = await shoppingLink.evaluate((el) => getComputedStyle(el).borderBottomColor);
 
+  // SPA merge: clicking the nav link swaps the view via the client-side
+  // router in main.js (pushState), no full page load — wait for the URL
+  // to update and the projects <main> to become visible, not for a
+  // `load` event.
   await projectsLink.click();
-  await page.waitForURL(/projects\.html/);
+  await page.waitForURL('/projects');
+  await expect(page.locator('main[data-view="projects"]')).toBeVisible();
 
   const activeProjectsLink = page.locator('.app-nav-link.is-active', { hasText: 'Projectes' });
   await expect(activeProjectsLink).toBeVisible();

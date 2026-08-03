@@ -10,6 +10,8 @@
 // movement animation — prefers-reduced-motion needs no special handling
 // here because there is no motion to reduce (NFR-08 not applicable).
 
+export { showToast, dismissToast } from './toast.js';
+
 const STATE_LABELS = {
   idea: 'Idea',
   decidit: 'Decidit',
@@ -166,49 +168,10 @@ export function renderProjects(projectsList, handlers) {
   }
 }
 
-// ================= Toast (shared visual pattern with render.js) =================
-
-const TOAST_AUTO_DISMISS_MS = 5000;
-let toastTimer = null;
-
-export function showToast(message) {
-  const wrap = document.getElementById('toast-wrap');
-  if (!wrap) return;
-  wrap.replaceChildren();
-
-  const toast = document.createElement('div');
-  toast.className = 'toast';
-  toast.setAttribute('role', 'status');
-
-  const icon = document.createElement('span');
-  icon.className = 'icon';
-  icon.setAttribute('aria-hidden', 'true');
-  icon.textContent = '⚠';
-  toast.appendChild(icon);
-
-  const text = document.createElement('span');
-  text.textContent = message;
-  toast.appendChild(text);
-
-  const closeBtn = document.createElement('button');
-  closeBtn.type = 'button';
-  closeBtn.className = 'close-btn';
-  closeBtn.setAttribute('aria-label', 'Tancar avís');
-  closeBtn.textContent = '×';
-  closeBtn.addEventListener('click', dismissToast);
-  toast.appendChild(closeBtn);
-
-  wrap.appendChild(toast);
-
-  if (toastTimer) clearTimeout(toastTimer);
-  toastTimer = setTimeout(dismissToast, TOAST_AUTO_DISMISS_MS);
-}
-
-export function dismissToast() {
-  const wrap = document.getElementById('toast-wrap');
-  if (wrap) wrap.replaceChildren();
-  if (toastTimer) {
-    clearTimeout(toastTimer);
-    toastTimer = null;
-  }
-}
+// ================= Toast =================
+//
+// Implementation moved to toast.js (shared with render.js — both views'
+// toasts now live on the same #toast-wrap node in the merged SPA shell,
+// so a single shared timer replaces what used to be two independent
+// module-level timers, one per page). Re-exported above for callers that
+// already `import { showToast } from './projects-render.js'`.

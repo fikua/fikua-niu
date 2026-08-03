@@ -93,10 +93,19 @@ services:
       # edge IPs (the ratelimit middleware runs before the
       # forwardedHeaders/X-Forwarded-For rewrite) and never fires.
       # Production-confirmed gotcha, do not drop this line.
+      #
+      # average/burst raised from 10/20 (2026-08-03): NIU-5 added a
+      # second polled page (Projectes, 10s interval, same as the
+      # shopping list). Two pages polling independently, plus manifest.json
+      # + /me + list on every full-page navigation between them, pushed a
+      # single household over 10 req/min and produced real 429s in normal
+      # use (confirmed via browser console, not hypothetical). Raised to
+      # absorb 2 users x 2 pages worth of polling + navigation bursts with
+      # headroom; revisit if a 3rd polled page (NIU-6) reintroduces this.
       traefik.http.routers.niu.middlewares: "niu-ratelimit"
-      traefik.http.middlewares.niu-ratelimit.ratelimit.average: "10"
+      traefik.http.middlewares.niu-ratelimit.ratelimit.average: "60"
       traefik.http.middlewares.niu-ratelimit.ratelimit.period: "1m"
-      traefik.http.middlewares.niu-ratelimit.ratelimit.burst: "20"
+      traefik.http.middlewares.niu-ratelimit.ratelimit.burst: "100"
       traefik.http.middlewares.niu-ratelimit.ratelimit.sourcecriterion.requestheadername: "Cf-Connecting-Ip"
     deploy:
       resources:

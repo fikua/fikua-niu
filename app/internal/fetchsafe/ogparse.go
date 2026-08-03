@@ -1,0 +1,183 @@
+// ogparse.go implements T-04 (design.md ADR-04): Open Graph metadata
+// extraction using golang.org/x/net/html — the same golang.org/x umbrella
+// already trusted in go.mod (golang.org/x/text), not a third-party
+// scraping dependency. It tokenizes the HTML stream already capped by the
+// 2MiB LimitReader (T-03g), stops as soon as </head> is seen (Open Graph
+// tags never live in <body>), and extracts og:title/og:image/
+// og:description from <meta property="og:*"> tags.
+package fetchsafe
+
+import (
+	"io"
+	"net/url"
+	"strings"
+
+	"golang.org/x/net/html"
+)
+
+// Length caps for recovered Open Graph fields (F-10/F-07, security/
+// resource limits — CWE-770). The 2MiB LimitReader (T-03g) already bounds
+// the worst case per row, but these caps keep list-rendering/DOM
+// performance sane and avoid growing the SQLite file unnecessarily on a
+// resource-constrained VPS. Truncate, never reject the whole preview.
+const (
+	maxTitleLen       = 300
+	maxDescriptionLen = 1000
+	maxImageURLLen    = 2048
+)
+
+// truncate cuts s to at most n runes, leaving it untouched if already
+// shorter. Rune-aware so multi-byte UTF-8 (Catalan diacritics, emoji in
+// recovered titles) is never split mid-codepoint.
+func truncate(s string, n int) string {
+	if len(s) <= n {
+		return s
+	}
+	r := []rune(s)
+	if len(r) <= n {
+		return s
+	}
+	return string(r[:n])
+}
+
+// isHTTPOrHTTPSURL reports whether content parses as an absolute http(s)
+// URL — the same scheme rule fetchsafe applies to fetch destinations
+// (validateScheme), reused here for a different trust boundary: values
+// *recovered from* a fetched page's content (og:image), not the page's
+// own URL (F-09/F-06). javascript:, data:, file:, and scheme-relative
+// (//host/path) values are all rejected.
+func isHTTPOrHTTPSURL(content string) bool {
+	parsed, err := url.Parse(content)
+	if err != nil {
+		return false
+	}
+	if parsed.Scheme != "http" && parsed.Scheme != "https" {
+		return false
+	}
+	return parsed.Host != ""
+}
+
+// parseOpenGraph tokenizes r (already limited by io.LimitReader, T-03g)
+// and extracts Open Graph metadata from <meta property="og:*"> tags found
+// before </head>. Malformed HTML or a complete absence of recognized OG
+// tags is treated as "not found" (EC-05) — not as a parser crash — and
+// returns a Preview with Partial=true and every field empty, letting the
+// caller decide (typically: preview_status='failed', since ideas.Service
+// treats zero recovered fields the same as any other fallback).
+//
+// If the LimitReader cuts the content before </head> is reached (T-03g),
+// whatever fields were already found up to that point are still
+// returned, marked Partial — this is deliberately a fallback outcome, not
+// a fatal error of the fetch itself.
+// ParseOpenGraphForTesting exposes the same Open Graph tokenizer used by
+// FetchPreview, for integration tests that exercise the ideas HTTP
+// surface against a local httptest.Server (which fetchsafe's own IP
+// allowlist correctly refuses to dial, since it always binds to
+// loopback) — see tests/integration/ideas_test_server_test.go. Pure
+// parsing, no network access, no SSRF implication: this is safe to
+// expose because it never decides what gets fetched, only what a
+// caller-supplied byte stream contains.
+func ParseOpenGraphForTesting(r io.Reader) (Preview, error) {
+	return parseOpenGraph(r)
+}
+
+func parseOpenGraph(r io.Reader) (Preview, error) {
+	tokenizer := html.NewTokenizer(r)
+
+	var preview Preview
+	found := 0
+
+	for {
+		tokenType := tokenizer.Next()
+
+		switch tokenType {
+		case html.ErrorToken:
+			// io.EOF (natural end) or a LimitReader cutoff, or malformed
+			// markup — in every case, treat as "no more to read", not a
+			// crash (EC-05).
+			return finishPreview(preview, found), nil
+
+		case html.StartTagToken, html.SelfClosingTagToken:
+			token := tokenizer.Token()
+
+			if token.Data == "head" && tokenType == html.SelfClosingTagToken {
+				// An empty <head/> — nothing to extract.
+				return finishPreview(preview, found), nil
+			}
+
+			if token.Data == "meta" {
+				if applyMetaToken(token, &preview) {
+					found++
+				}
+			}
+
+		case html.EndTagToken:
+			token := tokenizer.Token()
+			if token.Data == "head" {
+				// Open Graph tags never live in <body> — stop reading as
+				// soon as </head> closes (ADR-04), avoiding the cost of
+				// parsing the rest of a real page.
+				return finishPreview(preview, found), nil
+			}
+		}
+	}
+}
+
+// applyMetaToken inspects a single <meta> tag's attributes for
+// property="og:title|og:image|og:description" + content="...", writing
+// into preview when found. Returns true if a recognized OG field was
+// set.
+func applyMetaToken(token html.Token, preview *Preview) bool {
+	var property, content string
+	for _, attr := range token.Attr {
+		switch strings.ToLower(attr.Key) {
+		case "property":
+			property = strings.ToLower(strings.TrimSpace(attr.Val))
+		case "content":
+			content = attr.Val
+		}
+	}
+
+	if content == "" {
+		return false
+	}
+
+	switch property {
+	case "og:title":
+		if preview.Title == "" {
+			preview.Title = truncate(content, maxTitleLen)
+			return true
+		}
+	case "og:image":
+		if preview.ImageURL == "" {
+			// F-09/F-06: validate the scheme of a value *recovered from*
+			// the page's own content before ever storing it — a crafted
+			// og:image (javascript:, data:, file:, //host/x.png) would
+			// otherwise reach the browser's <img src> unfiltered, with
+			// only the CSP standing in the way (accidental, not a
+			// code-level control). Silently discard anything that is not
+			// a clean http(s) URL: the field simply stays empty, falling
+			// through to the already-implemented partial/failed states —
+			// never a hard error for the whole preview.
+			if !isHTTPOrHTTPSURL(content) {
+				return false
+			}
+			preview.ImageURL = truncate(content, maxImageURLLen)
+			return true
+		}
+	case "og:description":
+		if preview.Description == "" {
+			preview.Description = truncate(content, maxDescriptionLen)
+			return true
+		}
+	}
+	return false
+}
+
+// finishPreview marks Partial when fewer than all three recognized OG
+// fields were found (EC-05) — including the "found nothing at all" case,
+// which the caller (ideas.Service) treats as a full fallback.
+func finishPreview(preview Preview, found int) Preview {
+	preview.Partial = found < 3
+	return preview
+}

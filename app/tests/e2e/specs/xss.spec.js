@@ -15,6 +15,7 @@
 import { test, expect } from '@playwright/test';
 import { uniqueName, addItem, cleanupItem } from './helpers.js';
 import { uniqueProjectName, addProject, cleanupProject } from './projects-helpers.js';
+import { uniqueIdeaURL } from './ideas-helpers.js';
 
 // Each payload is a different injection vector, not a variation of one.
 const PAYLOADS = [
@@ -102,7 +103,7 @@ test.describe('S3a — XSS payloads render as literal text', () => {
     const errors = [];
     page.on('pageerror', (e) => errors.push(e.message));
 
-    await page.goto('/projects.html');
+    await page.goto('/projects');
     await page.evaluate(() => { delete window.__xss; });
 
     const payload = '<img src=x onerror="window.__xss=1">';
@@ -119,5 +120,59 @@ test.describe('S3a — XSS payloads render as literal text', () => {
     expect(errors, 'unexpected page errors').toEqual([]);
 
     await cleanupProject(page, name);
+  });
+
+  // F-20 (review.md, /audit NIU-6, qa-engineer's QA-01): EC-11/NFR-01's
+  // client-side non-execution assertion was missing for the ideas space
+  // specifically — code inspection of ideas-render.js is strong evidence
+  // (textContent/createElement only, no innerHTML), but this project's
+  // own testing principle is that no security mitigation is trusted on
+  // inspection alone; every case must execute the attack in a real
+  // browser and assert its failure, mirroring the item/project pattern
+  // above.
+  //
+  // The URL field is the vector here — it is always stored regardless of
+  // the SSRF/preview outcome (ideas-render.js's link row is
+  // textContent-only for both the domain-only and full-URL renderings),
+  // so this does not depend on fetchsafe's fetch succeeding or failing.
+  // The payload is embedded in an otherwise-valid https:// URL so it
+  // clears server-side scheme validation (EC-01) and the idea is
+  // actually saved; fetchsafe correctly cannot reach this host from the
+  // sandboxed E2E environment, so the card resolves to Estat B
+  // (fallback) — which is exactly the state that renders the FULL url
+  // (proposal.md §8.2), the strongest test of the link row's
+  // textContent-only rendering.
+  test('img onerror in the URL does not execute in the ideas space', async ({ page }) => {
+    const errors = [];
+    page.on('pageerror', (e) => errors.push(e.message));
+
+    // The payload's quotes/angle-brackets make it unsafe to interpolate
+    // into a CSS attribute selector (ideas-helpers.js's cardFor does
+    // exactly that) — locate the card by its unique path prefix in the
+    // visible text instead of by href attribute.
+    const prefix = uniqueIdeaURL('xss-idea');
+    const url = `${prefix}/<img src=x onerror="window.__xss=1">`;
+
+    await page.goto('/ideas');
+    await page.evaluate(() => { delete window.__xss; });
+    await page.fill('#add-idea-url', url);
+    await page.click('#add-idea-btn');
+
+    const card = page.locator('.idea-card', { hasText: prefix }).first();
+    await card.locator('.idea-fallback-message').waitFor({ state: 'visible', timeout: 12000 });
+
+    const executed = await page.evaluate(() => window.__xss === 1);
+    expect(executed, 'ideas XSS payload executed via the URL field — this is a real XSS').toBe(false);
+
+    // Estat B (fallback) never renders an <img>/<script>/<svg> of its own
+    // (only the discreet fallback icon + the link row's own legitimate
+    // <a class="idea-link">) — any match here would mean the payload was
+    // parsed as markup instead of inserted as text.
+    await expect(card.locator('img, script, svg')).toHaveCount(0);
+    await expect(card.locator('.idea-link')).toContainText(url);
+
+    expect(errors, 'unexpected page errors').toEqual([]);
+
+    await card.locator('.delete-btn').click({ force: true });
   });
 });

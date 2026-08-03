@@ -33,6 +33,13 @@
   --color-terracotta-hover: #A6431F;
   --color-terracotta-active: #8C3719;
 
+  /* NIU-6 §8.0/§9.1: approved at the Stage 1.5 human gate — the "Idees"
+     space's own accent, distinct from moss (Compra) and terracotta
+     (Projectes). */
+  --color-mel: #C99A3A;
+  --color-mel-hover: #A87D2A;
+  --color-mel-active: #8C6721;
+
   --color-focus-ring: #1F5FA8;
 
   --color-error: #A6341C;
@@ -154,11 +161,13 @@ header.app-header .wordmark {
   font-weight: var(--type-title-weight);
   color: var(--color-moss);
 }
-/* ================= Navigation (NIU-5, ADR-04) =================
+/* ================= Navigation (NIU-5, ADR-04; SPA merge) =================
    Two top-level entries, visible from anywhere in the app: the shopping
    list (moss green accent, unchanged) and the projects space (terracotta
-   accent) — plain links between two static documents, no client router,
-   no re-auth on navigation (design.md §7). */
+   accent). Since the SPA merge these are same-shell route links handled
+   by the router in js/main.js (history.pushState, no full navigation) —
+   is-active is toggled by the router via data-route, not inferred from
+   href. */
 .app-nav {
   display: flex;
   gap: var(--space-sm);
@@ -177,8 +186,9 @@ header.app-header .wordmark {
 .app-nav-link:hover { color: var(--color-text-primary); }
 .app-nav-link:focus-visible { outline: 2px solid var(--color-focus-ring); outline-offset: 2px; }
 .app-nav-link.is-active { color: var(--color-text-primary); }
-.app-nav-link.is-active[href$="index.html"] { border-bottom-color: var(--color-moss); }
-.app-nav-link.is-active[href$="projects.html"] { border-bottom-color: var(--color-terracotta); }
+.app-nav-link.is-active[data-route="/"] { border-bottom-color: var(--color-moss); }
+.app-nav-link.is-active[data-route="/projects"] { border-bottom-color: var(--color-terracotta); }
+.app-nav-link.is-active[data-route="/ideas"] { border-bottom-color: var(--color-mel-hover); }
 
 @media (max-width: 767px) {
   .app-nav { order: 3; flex-basis: 100%; }
@@ -694,4 +704,160 @@ header.app-header .wordmark {
   .project-row .delete-btn { width: 44px; height: 44px; min-width: 44px; min-height: 44px; font-size: 18px; }
   .project-row:hover .delete-btn,
   .project-row:focus-within .delete-btn { opacity: 1; pointer-events: auto; }
+}
+
+/* ================= Ideas space (NIU-6) =================
+   Third space, third layout: a responsive card grid (proposal.md §8.2) —
+   neither the dual-list of Compra nor the single-list-with-badge of
+   Projectes, reinforcing AC-07 beyond colour alone. --color-mel is this
+   space's own accent (approved at the Stage 1.5 human gate), used only on
+   the "Desar" button and the active nav underline (§8.0/§9.1) — the card
+   surface itself stays on the shared --color-surface/--color-surface-soft
+   tokens, same as ItemRow/ProjectRow. */
+
+.ideas-box { margin-top: var(--space-md); }
+.ideas-box .box-title { color: var(--color-mel-hover); }
+
+.add-idea-form {
+  margin-top: var(--space-md);
+  margin-bottom: var(--space-md);
+}
+/* WCAG 2.2 AA contrast fix (found via the T-28 automated axe-core audit):
+   --color-mel (#C99A3A, 2.57:1) and --color-mel-hover (#A87D2A, 3.72:1)
+   both fall short of the 4.5:1 AA threshold for the button's 16px bold
+   white label — only --color-mel-active (#8C6721, 5.15:1) clears it.
+   Using it as the button's resting state keeps the same approved hue
+   family (Stage 1.5 gate) while passing contrast; --color-mel/-hover
+   remain the accent used for the nav underline and box title, where they
+   sit on the page background, not underneath white text. brightness()
+   darkens further for :hover/:active without inventing a new token. */
+.add-idea-btn,
+#add-idea-btn { background: var(--color-mel-active); }
+#add-idea-btn:hover { filter: brightness(0.9); }
+#add-idea-btn:active { filter: brightness(0.8); }
+
+.ideas-grid {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+  gap: var(--space-md);
+}
+
+.idea-card {
+  display: flex;
+  flex-direction: column;
+  background: var(--color-surface);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-sm);
+  padding: var(--space-md);
+  position: relative;
+  transition: box-shadow 150ms ease-out;
+}
+.idea-card:hover { box-shadow: var(--shadow-md); }
+.idea-card:hover .delete-btn,
+.idea-card:focus-within .delete-btn { opacity: 1; pointer-events: auto; }
+
+/* Estat A/C (proposal.md §8.2): 16:9 image, rounded only at the top so it
+   continues the card's own radius. */
+.idea-image {
+  width: 100%;
+  aspect-ratio: 16 / 9;
+  object-fit: cover;
+  border-radius: var(--radius-md) var(--radius-md) 0 0;
+  margin: calc(var(--space-md) * -1) calc(var(--space-md) * -1) var(--space-sm);
+  width: calc(100% + var(--space-md) * 2);
+  max-width: none;
+}
+
+.idea-title {
+  font-weight: var(--type-body-strong-weight);
+  margin: var(--space-sm) 0 0;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.idea-description {
+  font-size: var(--type-caption-size);
+  color: var(--color-text-secondary);
+  margin: var(--space-xs) 0 0;
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.idea-link {
+  font-size: var(--type-caption-size);
+  color: var(--color-text-secondary);
+  text-decoration: none;
+  margin-top: var(--space-sm);
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.idea-link:hover, .idea-link:focus-visible { text-decoration: underline; }
+.idea-link:focus-visible { outline: 2px solid var(--color-focus-ring); outline-offset: 2px; }
+
+.idea-card .avatars {
+  position: absolute;
+  bottom: var(--space-sm);
+  right: var(--space-sm);
+}
+.idea-card .delete-btn {
+  position: absolute;
+  top: var(--space-sm);
+  right: var(--space-sm);
+  background: var(--color-surface);
+}
+
+/* Estat B (proposal.md §8.2): NOT an error state — no --color-error
+   anywhere here, deliberately. */
+.idea-card-failed .idea-fallback-icon {
+  font-size: 32px;
+  color: var(--color-text-secondary);
+  text-align: center;
+  padding: var(--space-lg) 0 var(--space-sm);
+}
+.idea-card-failed .idea-fallback-message {
+  font-size: var(--type-caption-size);
+  color: var(--color-text-secondary);
+  margin: var(--space-xs) 0 0;
+}
+.idea-card-failed .idea-link {
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+
+/* Estat D (proposal.md §8.2): shimmer, not a spinner (PLAN.md §4 calm
+   aesthetic). prefers-reduced-motion swaps it for a fixed opacity, same
+   principle already applied to .item-row.just-added above. */
+.idea-shimmer {
+  width: calc(100% + var(--space-md) * 2);
+  margin: calc(var(--space-md) * -1) calc(var(--space-md) * -1) var(--space-sm);
+  aspect-ratio: 16 / 9;
+  border-radius: var(--radius-md) var(--radius-md) 0 0;
+  background: var(--color-surface-soft);
+  animation: idea-shimmer 1.5s ease-in-out infinite;
+}
+@keyframes idea-shimmer {
+  0%, 100% { background-color: var(--color-surface-soft); }
+  50% { background-color: var(--color-border); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .idea-shimmer { animation: none; opacity: 0.7; }
+}
+.idea-pending-message {
+  font-size: var(--type-caption-size);
+  color: var(--color-text-secondary);
+  margin: var(--space-sm) 0 0;
+}
+
+@media (max-width: 767px) {
+  .ideas-grid { grid-template-columns: 1fr; }
+  .idea-card .delete-btn { width: 44px; height: 44px; min-width: 44px; min-height: 44px; font-size: 18px; }
+  .idea-card:hover .delete-btn,
+  .idea-card:focus-within .delete-btn { opacity: 1; pointer-events: auto; }
 }

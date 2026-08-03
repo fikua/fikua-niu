@@ -18,21 +18,39 @@
 <meta name="apple-mobile-web-app-title" content="niu">
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
 <link rel="apple-touch-icon" href="./assets/icon-180.png">
-<!-- Preload the full ES module graph in parallel (design.md §8: no
-     build step, no bundler). Without this, the browser only discovers
-     nested imports (store.js -> render.js -> flip.js, etc.) after
-     fetching and parsing each parent module in turn, creating a
+<!-- Preload the shopping view's ES module graph in parallel (design.md
+     §8: no build step, no bundler). Without this, the browser only
+     discovers nested imports (store.js -> render.js -> flip.js, etc.)
+     after fetching and parsing each parent module in turn, creating a
      multi-round-trip waterfall that blows past the <1s NFR-06 budget on
      a high-latency connection (verified via Playwright 3G emulation,
      T-30). modulepreload lets the browser fetch every module concurrently
-     up front instead. -->
+     up front instead.
+
+     SPA merge NOTE: the projects view's own modules (projects-api.js,
+     projects-store.js, projects-render.js, projects-view.js) are
+     deliberately NOT preloaded here — main.js mounts the shopping view
+     (the default route) first and loads the projects view via a dynamic
+     import() right after (see main.js), so its network requests don't
+     compete with the shopping view's critical first render on a
+     throttled connection. Preloading its modules here would defeat that
+     deferral by fetching them just as eagerly regardless. They still
+     load fast (same-origin, same server) once main.js's dynamic
+     import('./projects-view.js') runs.
+
+     NIU-6 NOTE: the ideas view's modules (ideas-api.js, ideas-store.js,
+     ideas-render.js, ideas-view.js) follow the exact same deferred
+     dynamic-import() treatment as the projects view above, for the same
+     reason — deliberately NOT preloaded here. -->
 <link rel="modulepreload" href="./js/api.js">
 <link rel="modulepreload" href="./js/a11y.js">
 <link rel="modulepreload" href="./js/flip.js">
 <link rel="modulepreload" href="./js/confetti.js">
 <link rel="modulepreload" href="./js/render.js">
+<link rel="modulepreload" href="./js/toast.js">
 <link rel="modulepreload" href="./js/store.js">
 <link rel="modulepreload" href="./js/tabs.js">
+<link rel="modulepreload" href="./js/shopping-view.js">
 <link rel="modulepreload" href="./js/auth.js">
 <link rel="modulepreload" href="./js/strings.js">
 <link rel="modulepreload" href="./js/main.js">
@@ -42,8 +60,9 @@
     <header class="app-header">
       <span class="wordmark">niu</span>
       <nav class="app-nav" aria-label="Seccions de Niu">
-        <a class="app-nav-link is-active" href="./index.html">🛒 Compra</a>
-        <a class="app-nav-link" href="./projects.html">🏠 Projectes</a>
+        <a class="app-nav-link is-active" href="/" data-route="/">🛒 Compra</a>
+        <a class="app-nav-link" href="/projects" data-route="/projects">🏠 Projectes</a>
+        <a class="app-nav-link app-nav-link-mel" href="/ideas" data-route="/ideas">💡 Idees</a>
       </nav>
       <div class="header-right">
         <div class="user-chip" id="user-chip">
@@ -54,46 +73,104 @@
       </div>
     </header>
 
-    <!-- §8.7 aria-live region: shared, immediately after header, before both boxes -->
+    <!-- §8.7 aria-live region: shared, immediately after header, before
+         either view's content. One live region for the whole SPA shell —
+         both views' announcements route through it. -->
     <div id="live-region" class="sr-only" role="status" aria-live="polite" aria-atomic="true"></div>
 
-    <!-- Mobile tab bar (§8.3.2, EC-16). Hidden on desktop via app.css. -->
-    <div class="tabbar" role="tablist" aria-label="Seccions">
-      <button class="tab is-active" data-panel="shopping" role="tab" aria-selected="true" aria-controls="box-shopping" type="button">
-        🛒 Comprar <span id="tab-count-shopping">(0)</span>
-      </button>
-      <button class="tab" data-panel="pantry" role="tab" aria-selected="false" aria-controls="box-pantry" type="button">
-        🥫 Rebost <span id="tab-count-pantry">(0)</span>
-      </button>
-    </div>
+    <!-- ============ Shopping-list view (route "/") ============ -->
+    <main data-view="shopping">
+      <!-- Mobile tab bar (§8.3.2, EC-16). Hidden on desktop via app.css. -->
+      <div class="tabbar" role="tablist" aria-label="Seccions">
+        <button class="tab is-active" data-panel="shopping" role="tab" aria-selected="true" aria-controls="box-shopping" type="button">
+          🛒 Comprar <span id="tab-count-shopping">(0)</span>
+        </button>
+        <button class="tab" data-panel="pantry" role="tab" aria-selected="false" aria-controls="box-pantry" type="button">
+          🥫 Rebost <span id="tab-count-pantry">(0)</span>
+        </button>
+      </div>
 
-    <div class="boxes">
-      <section class="box panel is-visible" id="box-shopping" role="region" aria-label="A comprar">
+      <div class="boxes">
+        <section class="box panel is-visible" id="box-shopping" role="region" aria-label="A comprar">
+          <div class="box-header">
+            <h2 class="box-title"><span aria-hidden="true">🛒</span> A comprar</h2>
+            <span class="box-count" id="count-shopping">(0)</span>
+          </div>
+          <hr>
+          <ul class="item-list" id="list-shopping"></ul>
+          <div class="add-input-group" id="add-group">
+            <input type="text" id="add-input" placeholder="+ afegir un ítem…" aria-label="Afegir un ítem" maxlength="200">
+            <button class="add-btn" id="add-btn" type="button">Afegir</button>
+          </div>
+          <div class="add-footer">
+            <span class="error-msg" id="add-error" role="alert" hidden></span>
+            <span class="counter" id="add-counter">0/200</span>
+          </div>
+        </section>
+
+        <section class="box panel" id="box-pantry" role="region" aria-label="Rebost">
+          <div class="box-header">
+            <h2 class="box-title"><span aria-hidden="true">🥫</span> Rebost</h2>
+            <span class="box-count" id="count-pantry">(0)</span>
+          </div>
+          <hr>
+          <ul class="item-list" id="list-pantry"></ul>
+        </section>
+      </div>
+    </main>
+
+    <!-- ============ Projects view (route "/projects") ============ -->
+    <main data-view="projects" hidden>
+      <section class="box projects-box" id="box-projects" role="region" aria-label="Projectes">
         <div class="box-header">
-          <h2 class="box-title"><span aria-hidden="true">🛒</span> A comprar</h2>
-          <span class="box-count" id="count-shopping">(0)</span>
+          <h2 class="box-title"><span aria-hidden="true">🏠</span> Compres grans i projectes de casa</h2>
+          <span class="box-count" id="projects-count">(0)</span>
         </div>
         <hr>
-        <ul class="item-list" id="list-shopping"></ul>
-        <div class="add-input-group" id="add-group">
-          <input type="text" id="add-input" placeholder="+ afegir un ítem…" aria-label="Afegir un ítem" maxlength="200">
-          <button class="add-btn" id="add-btn" type="button">Afegir</button>
-        </div>
-        <div class="add-footer">
-          <span class="error-msg" id="add-error" role="alert" hidden></span>
-          <span class="counter" id="add-counter">0/200</span>
+        <ul class="item-list" id="projects-list"></ul>
+
+        <div class="add-project-form" id="add-project-form">
+          <div class="add-input-group" id="add-project-group">
+            <input type="text" id="add-project-name" placeholder="+ afegir una idea o projecte…" aria-label="Nom del projecte" maxlength="200">
+          </div>
+          <div class="add-project-optional">
+            <div class="add-input-group">
+              <input type="text" id="add-project-budget" placeholder="Pressupost (opcional)" aria-label="Pressupost" maxlength="200">
+            </div>
+            <div class="add-input-group">
+              <input type="date" id="add-project-target-date" aria-label="Data objectiu (opcional)">
+            </div>
+            <button class="add-btn" id="add-project-btn" type="button">Afegir</button>
+          </div>
+          <div class="add-footer">
+            <span class="error-msg" id="add-project-error" role="alert" hidden></span>
+          </div>
         </div>
       </section>
+    </main>
 
-      <section class="box panel" id="box-pantry" role="region" aria-label="Rebost">
+    <!-- ============ Ideas view (route "/ideas", NIU-6) ============ -->
+    <main data-view="ideas" hidden>
+      <section class="box ideas-box" id="box-ideas" role="region" aria-label="Idees">
         <div class="box-header">
-          <h2 class="box-title"><span aria-hidden="true">🥫</span> Rebost</h2>
-          <span class="box-count" id="count-pantry">(0)</span>
+          <h2 class="box-title"><span aria-hidden="true">💡</span> Idees d'activitats</h2>
+          <span class="box-count" id="ideas-count">(0)</span>
         </div>
         <hr>
-        <ul class="item-list" id="list-pantry"></ul>
+
+        <div class="add-idea-form" id="add-idea-form">
+          <div class="add-input-group" id="add-idea-group">
+            <input type="url" id="add-idea-url" placeholder="+ enganxa un enllaç…" aria-label="Enllaç de l'activitat">
+            <button class="add-btn add-btn-mel" id="add-idea-btn" type="button">Desar</button>
+          </div>
+          <div class="add-footer">
+            <span class="error-msg" id="add-idea-error" role="alert" hidden></span>
+          </div>
+        </div>
+
+        <ul class="ideas-grid" id="ideas-grid"></ul>
       </section>
-    </div>
+    </main>
 
     <footer class="app-footer">Fet per Fikua · © 2026</footer>
   </div>
