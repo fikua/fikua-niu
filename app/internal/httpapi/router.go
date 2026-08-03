@@ -5,9 +5,9 @@
 package httpapi
 
 import (
+	"io"
 	"io/fs"
 	"net/http"
-	"net/url"
 	"path"
 	"strings"
 
@@ -146,12 +146,12 @@ func NewRouter(svc *items.Service, projectsSvc *projects.Service, health HealthC
 	// SPA fallback (frontend SPA merge): client-side routing means a real
 	// browser navigation to e.g. /projects (bookmark, manual URL entry, or
 	// a page refresh while on that view) is a genuine GET /projects
-	// request that has no corresponding file in webFS — only the router.js
-	// running INSIDE index.html knows how to render that route. Without
-	// this fallback such a request 404s. spaFallback serves index.html for
-	// any GET/HEAD request whose path does not resolve to a real file in
-	// webFS, so CSS/JS modules/manifest/icons continue to resolve
-	// normally (they exist in webFS and are served as-is) and only
+	// request that has no corresponding file in webFS — only the router
+	// running INSIDE index.html (js/main.js) knows how to render that
+	// route. Without this fallback such a request 404s. spaFallback serves
+	// index.html for any GET/HEAD request whose path does not resolve to a
+	// real file in webFS, so CSS/JS modules/manifest/icons continue to
+	// resolve normally (they exist in webFS and are served as-is) and only
 	// unmatched, HTML-navigation-shaped routes fall back to the shell.
 	fileServer := http.FileServer(http.FS(webFS))
 	r.NotFound(spaFallback(webFS, fileServer))
@@ -165,6 +165,14 @@ func NewRouter(svc *items.Service, projectsSvc *projects.Service, health HealthC
 // exist (app.css, js/*.js, manifest.json, assets/*, fonts/*, login.html)
 // is served as-is by fileServer, unchanged from before this fallback
 // existed.
+//
+// The fallback branch serves index.html's bytes directly via
+// http.ServeContent rather than delegating to fileServer with a rewritten
+// URL.Path — http.FileServer special-cases any request whose served file
+// is named "index.html" and issues a 301 to strip it from the URL
+// ("Location: ./"), which is correct for a real directory index but wrong
+// here: a request for /projects must render the SPA shell IN PLACE, at
+// the /projects URL, not redirect the browser back to /.
 func spaFallback(webFS fs.FS, fileServer http.Handler) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodGet && r.Method != http.MethodHead {
@@ -179,16 +187,39 @@ func spaFallback(webFS fs.FS, fileServer http.Handler) http.HandlerFunc {
 
 		if _, err := fs.Stat(webFS, cleanPath); err != nil {
 			// No real file at this path — treat it as a client-side route
-			// and serve the SPA shell so router.js can render it.
-			r2 := new(http.Request)
-			*r2 = *r
-			r2.URL = new(url.URL)
-			*r2.URL = *r.URL
-			r2.URL.Path = "/index.html"
-			fileServer.ServeHTTP(w, r2)
+			// and serve the SPA shell's content in place, so the router in
+			// js/main.js can render it at this same URL.
+			serveIndex(w, r, webFS)
 			return
 		}
 
 		fileServer.ServeHTTP(w, r)
 	}
+}
+
+// serveIndex reads index.html from webFS and serves it directly, keeping
+// the request's original URL (so the browser's address bar and
+// history.pushState-based router both stay at e.g. /projects, not / ).
+func serveIndex(w http.ResponseWriter, r *http.Request, webFS fs.FS) {
+	f, err := webFS.Open("index.html")
+	if err != nil {
+		http.NotFound(w, r)
+		return
+	}
+	defer f.Close()
+
+	stat, err := f.Stat()
+	if err != nil {
+		http.NotFound(w, r)
+		return
+	}
+
+	rs, ok := f.(io.ReadSeeker)
+	if !ok {
+		http.Error(w, "internal_error", http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	http.ServeContent(w, r, "index.html", stat.ModTime(), rs)
 }
