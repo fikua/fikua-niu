@@ -102,7 +102,7 @@ test.describe('S3a — XSS payloads render as literal text', () => {
     const errors = [];
     page.on('pageerror', (e) => errors.push(e.message));
 
-    await page.goto('/projects.html');
+    await page.goto('/projects');
     await page.evaluate(() => { delete window.__xss; });
 
     const payload = '<img src=x onerror="window.__xss=1">';

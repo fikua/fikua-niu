@@ -11,7 +11,7 @@ export function uniqueProjectName(prefix) {
 }
 
 export async function addProject(page, name) {
-  await page.goto('/projects.html');
+  await page.goto('/projects');
   await page.fill('#add-project-name', name);
   await page.click('#add-project-btn');
   await page.locator('.project-row', { hasText: name }).first().waitFor({ state: 'visible' });
