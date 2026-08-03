@@ -423,12 +423,12 @@ updated: "2026-08-03"
   totes les funcionalitats (EC-18). Documentar `overview.md` com a
   revisió manual d'AC-11 (revisió documental, no automatitzable). ·
   *covers:* AC-07, AC-09, AC-10, EC-18
-- [ ] **T-29** — Actualitzar `docs/overview.md` per esmentar l'espai
+- [x] **T-29** — Actualitzar `docs/overview.md` per esmentar l'espai
   d'idees d'activitats amb previsualització de link com a funcionalitat
   existent de Niu (llista simple sense estat, fallback no bloquejant,
   sense deduplicació d'enllaços), mantenint-lo com a font única de
   veritat del que fa l'app. · *covers:* AC-11
-- [ ] **T-30** — Executar `commands.test` (`cd app && go test ./...`),
+- [x] **T-30** — Executar `commands.test` (`cd app && go test ./...`),
   `commands.lint` (`gofmt -l`) i `commands.typecheck` (`cd app && go
   vet ./...`) del manifest de punta a punta; confirmar explícitament
   que els tres tests de regressió SSRF (T-27c, T-27d) i el test de
@@ -440,7 +440,7 @@ updated: "2026-08-03"
 
 ### Closing (universal — all changes)
 
-- [ ] **C-01** — Append changelog entry (`docs.changelog` from manifest)
+- [x] **C-01** — Append changelog entry (`docs.changelog` from manifest)
 - [ ] **C-02** — Transition backlog item to `Human Review` via the adapter
 - [ ] **C-03** — Propose semver bump (ASK USER — never apply unattended)
 

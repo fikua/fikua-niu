@@ -75,3 +75,37 @@ i el projecte s'adhereix a [Semantic Versioning](https://semver.org/lang/ca/).
   NIU-1/NIU-4 sense regressions + 3 nous — diferenciació visual, teclat/
   aria-live/estat buit/mòbil, auditoria axe-core i XSS aplicats a l'espai
   de projectes).
+- **NIU-6 — Idees d'activitats amb previsualització de link:** tercer
+  espai, separat de la compra i dels projectes, per desar enllaços
+  d'activitats amb previsualització automàtica (títol/imatge/descripció
+  Open Graph). Domini nou `internal/ideas` (ADR-01), sense cicle de vida
+  ni deduplicació d'enllaços (EC-06). **Component central de seguretat:**
+  `internal/fetchsafe` (ADR-02, esmenat post-revisió de seguretat —
+  F-01 a F-07), l'única porta d'entrada de tot Niu a peticions HTTP cap a
+  una URL introduïda per l'usuari — validació d'esquema `http(s)` abans de
+  qualsevol xarxa, denylist de noms d'amfitrió (`niu.fikua.com` +
+  `NIU_PUBLIC_HOST` + serveis de `traefik-public`) independent de la
+  validació d'IP, `net.Dialer.ControlContext` com a únic punt de validació
+  d'IP amb criteri d'allowlist (`IsGlobalUnicast() && !IsPrivate()`) post-
+  `Unmap()` (rebuig explícit de formes IPv4-mapejades-a-IPv6 i de prefixos
+  NAT64/6to4), `DisableKeepAlives` + revalidació d'esquema a
+  `CheckRedirect` (defensa en dues capes contra el bypass de connexió
+  reutilitzada), timeout dur de 5s, límit de 2 MiB en streaming, client
+  HTTP dedicat sense cap credencial de Niu. Scraping asíncron amb worker
+  pool acotat de 6 workers (ADR-03, esmenat — límit de concurrència/
+  memòria): `POST /api/v1/ideas` respon `201` immediatament amb la idea en
+  `pending`, la previsualització es resol en segon pla i mai bloqueja la
+  petició original. Parsing Open Graph amb `golang.org/x/net/html`
+  (ADR-04, sense dependència de tercers). Nova entrada de navegació
+  ("💡 Idees") amb l'accent `--color-mel` i graella de targetes de quatre
+  estats (completa/fallback/parcial/pendent) mapejats a `preview_status`.
+  `overview.md` actualitzat. Suite de tests: 171 tests Go en total (59
+  nous — validació/parsing/worker pool a `internal/ideas`/`internal/
+  fetchsafe`, i a `tests/integration/` un conjunt dedicat de regressió
+  SSRF contra un servidor de test real amb comptador de connexions TCP
+  acceptades, incloent els dos casos de regressió F-01 (redirecció
+  mateix-host) i F-02 (adreça IPv4-mapejada-a-IPv6) explícitament exigits
+  per `security-engineer`) + 33 tests E2E Playwright (22 existents sense
+  regressions + 11 nous — diferenciació visual, teclat, targeta accessible
+  amb fallback, `aria-live`, viewport mòbil i auditoria axe-core aplicats
+  a l'espai d'idees).
