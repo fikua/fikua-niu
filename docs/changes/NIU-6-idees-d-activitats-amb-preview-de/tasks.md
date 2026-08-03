@@ -87,19 +87,19 @@ updated: "2026-08-03"
 > cadascuna com present al codi sense haver-la de deduir d'una tasca
 > genèrica "implementar fetchsafe".
 
-- [ ] **T-03** — Crear `internal/fetchsafe` amb la signatura pública
+- [x] **T-03** — Crear `internal/fetchsafe` amb la signatura pública
   única `FetchPreview(ctx context.Context, rawURL string) (Preview,
   error)` i els errors tipats (`ErrSchemeRejected`,
   `ErrDestinationForbidden`, `ErrTimeout`, `ErrResponseTooLarge`,
   `ErrUnsupportedContentType`). Cap altre paquet de l'aplicació pot
   importar `net/http` per fer una petició cap a una URL controlada per
   l'usuari (design.md §4, R-01). · *covers:* AC-01 (base), AC-02 (base)
-- [ ] **T-03a** — Implementar la validació d'esquema (NFR-05/EC-01):
+- [x] **T-03a** — Implementar la validació d'esquema (NFR-05/EC-01):
   `url.Parse` + comprovació `scheme == "http" || scheme == "https"`
   **abans** de qualsevol activitat de xarxa; rebutjar `file://`,
   `javascript:`, `ftp://`, `data:`, esquema buit amb
   `ErrSchemeRejected`, zero peticions de xarxa. · *covers:* NFR-05
-- [ ] **T-03b** — Implementar la denylist de noms d'amfitrió
+- [x] **T-03b** — Implementar la denylist de noms d'amfitrió
   (NFR-06 — F-03/F-04), comprovada **abans i independentment** de
   qualsevol resolució DNS: `niu.fikua.com` (hardcoded) + valor de
   `NIU_PUBLIC_HOST` (variable d'entorn) + noms de servei coneguts de la
@@ -108,7 +108,7 @@ updated: "2026-08-03"
   sobre el host de la URL; si coincideix, `ErrDestinationForbidden`
   immediat sense cap crida DNS. · *covers:* NFR-06 (base — vector edge
   públic)
-- [ ] **T-03c** — Construir el `net.Dialer` amb `ControlContext` (no
+- [x] **T-03c** — Construir el `net.Dialer` amb `ControlContext` (no
   `Control`) com a **únic** punt de validació d'IP (NFR-06/EC-02/EC-07)
   — **no** afegir cap crida separada a
   `net.DefaultResolver.LookupIPAddr` abans o en paral·lel (rebutjat
@@ -123,7 +123,7 @@ updated: "2026-08-03"
   `IsGlobalUnicast()`. Si `ControlContext` retorna error, `DialContext`
   avorta abans del `connect()`. · *covers:* NFR-06 (mecanisme central —
   EC-02/EC-07)
-- [ ] **T-03d** — Configurar `http.Transport` dedicat amb
+- [x] **T-03d** — Configurar `http.Transport` dedicat amb
   `DisableKeepAlives: true` (F-01/F-06) — sense aquesta opció, una
   cadena de redireccions cap al mateix host reutilitza la connexió TCP
   ja oberta i mai torna a cridar `DialContext`/`ControlContext`,
@@ -131,7 +131,7 @@ updated: "2026-08-03"
   empíricament per `security-engineer`: 4 salts → 1 sola invocació de
   `Control` sense aquesta opció). · *covers:* NFR-06 (defensa —
   connexions reutilitzades)
-- [ ] **T-03e** — Implementar `http.Client.CheckRedirect` amb **dues**
+- [x] **T-03e** — Implementar `http.Client.CheckRedirect` amb **dues**
   responsabilitats explícites (NFR-06/EC-04, esmenat F-01): (a) limitar
   la cadena a **5 salts** (error propi passats els 5); (b) re-validar
   explícitament dins de `CheckRedirect` que l'esquema de la següent URL
@@ -140,19 +140,19 @@ updated: "2026-08-03"
   capa addicional, no substitueix la validació d'IP de T-03c. ·
   *covers:* NFR-06 (defensa en profunditat — redireccions), NFR-07
   (límit de salts)
-- [ ] **T-03f** — Configurar el `context.WithTimeout(ctx, 5*time.Second)`
+- [x] **T-03f** — Configurar el `context.WithTimeout(ctx, 5*time.Second)`
   que embolcalla tota la crida `FetchPreview` (DNS + connexió + TLS +
   capçaleres + cos), no només `http.Client.Timeout` (que es manté com a
   xarxa de seguretat de segon nivell) — un servidor que respon
   capçaleres de seguida però allarga el cos indefinidament també queda
   tallat als 5s. · *covers:* NFR-07 (timeout, EC-08)
-- [ ] **T-03g** — Implementar el límit de mida en streaming: 2 MiB via
+- [x] **T-03g** — Implementar el límit de mida en streaming: 2 MiB via
   `io.LimitReader(resp.Body, 2<<20)` aplicat **abans** de passar el
   lector al parser HTML, mai `io.ReadAll(resp.Body)` sense límit. Si el
   `LimitReader` talla el contingut abans d'acabar el `<head>`, tractar
   com a fallback (no com a error fatal del procés). · *covers:* NFR-07
   (límit de mida, EC-03)
-- [ ] **T-03h** — Construir el `http.Client` dedicat de `fetchsafe` a
+- [x] **T-03h** — Construir el `http.Client` dedicat de `fetchsafe` a
   l'arrencada de l'app (una sola instància reutilitzada, no un client
   nou per petició), sense cap `Cookie`/`Authorization`/secret de Niu
   adjunt; l'única capçalera pròpia és un `User-Agent` identificable
@@ -161,7 +161,7 @@ updated: "2026-08-03"
 
 ### Implementation — parsing Open Graph (ADR-04)
 
-- [ ] **T-04** — Implementar el parsing Open Graph amb
+- [x] **T-04** — Implementar el parsing Open Graph amb
   `golang.org/x/net/html` (afegir dependència al `go.mod`): tokenitzar
   el flux HTML ja limitat pel `LimitReader` de T-03g, aturar-se en
   trobar el tancament de `<head>`, extreure `og:title`, `og:image`,
@@ -301,12 +301,12 @@ updated: "2026-08-03"
 
 ### Verification
 
-- [ ] **T-20** — Afegir tests unitaris a `internal/ideas`/`fetchsafe`
+- [x] **T-20** — Afegir tests unitaris a `internal/ideas`/`fetchsafe`
   per a la validació de format i esquema d'URL (AC-08/EC-01/EC-10):
   URL buida o només espais rebutjada (EC-10); esquemes `file://`,
   `javascript:`, `ftp://`, `data:` rebutjats sense cap petició de
   xarxa (EC-01/NFR-05). · *covers:* AC-08, EC-01, EC-10, NFR-05
-- [ ] **T-21** — Afegir test unitari de parsing Open Graph (AC-01/
+- [x] **T-21** — Afegir test unitari de parsing Open Graph (AC-01/
   AC-03/EC-05): HTML amb totes les etiquetes OG (èxit complet), HTML
   amb només algunes etiquetes (parcial, EC-05 camps absents), HTML
   sense cap etiqueta OG reconeguda o malformat (EC-05, tractat com a
