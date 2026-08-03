@@ -18,28 +18,33 @@
 <meta name="apple-mobile-web-app-title" content="niu">
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
 <link rel="apple-touch-icon" href="./assets/icon-180.png">
-<!-- Preload the full ES module graph in parallel (design.md §8: no
-     build step, no bundler). Without this, the browser only discovers
-     nested imports (store.js -> render.js -> flip.js, etc.) after
-     fetching and parsing each parent module in turn, creating a
+<!-- Preload the shopping view's ES module graph in parallel (design.md
+     §8: no build step, no bundler). Without this, the browser only
+     discovers nested imports (store.js -> render.js -> flip.js, etc.)
+     after fetching and parsing each parent module in turn, creating a
      multi-round-trip waterfall that blows past the <1s NFR-06 budget on
      a high-latency connection (verified via Playwright 3G emulation,
      T-30). modulepreload lets the browser fetch every module concurrently
-     up front instead. SPA merge: this single shell now preloads the
-     union of what index.html + projects.html preloaded separately. -->
+     up front instead.
+
+     SPA merge NOTE: the projects view's own modules (projects-api.js,
+     projects-store.js, projects-render.js, projects-view.js) are
+     deliberately NOT preloaded here — main.js mounts the shopping view
+     (the default route) first and loads the projects view via a dynamic
+     import() right after (see main.js), so its network requests don't
+     compete with the shopping view's critical first render on a
+     throttled connection. Preloading its modules here would defeat that
+     deferral by fetching them just as eagerly regardless. They still
+     load fast (same-origin, same server) once main.js's dynamic
+     import('./projects-view.js') runs. -->
 <link rel="modulepreload" href="./js/api.js">
-<link rel="modulepreload" href="./js/projects-api.js">
 <link rel="modulepreload" href="./js/a11y.js">
 <link rel="modulepreload" href="./js/flip.js">
 <link rel="modulepreload" href="./js/confetti.js">
 <link rel="modulepreload" href="./js/render.js">
-<link rel="modulepreload" href="./js/projects-render.js">
 <link rel="modulepreload" href="./js/store.js">
-<link rel="modulepreload" href="./js/projects-store.js">
 <link rel="modulepreload" href="./js/tabs.js">
-<link rel="modulepreload" href="./js/router.js">
 <link rel="modulepreload" href="./js/shopping-view.js">
-<link rel="modulepreload" href="./js/projects-view.js">
 <link rel="modulepreload" href="./js/auth.js">
 <link rel="modulepreload" href="./js/strings.js">
 <link rel="modulepreload" href="./js/main.js">

@@ -158,8 +158,9 @@ header.app-header .wordmark {
    Two top-level entries, visible from anywhere in the app: the shopping
    list (moss green accent, unchanged) and the projects space (terracotta
    accent). Since the SPA merge these are same-shell route links handled
-   by js/router.js (history.pushState, no full navigation) — is-active is
-   toggled by the router via data-route, not inferred from href. */
+   by the router in js/main.js (history.pushState, no full navigation) —
+   is-active is toggled by the router via data-route, not inferred from
+   href. */
 .app-nav {
   display: flex;
   gap: var(--space-sm);
