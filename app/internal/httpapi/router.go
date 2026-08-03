@@ -7,6 +7,9 @@ package httpapi
 import (
 	"io/fs"
 	"net/http"
+	"net/url"
+	"path"
+	"strings"
 
 	"github.com/go-chi/chi/v5"
 	chimw "github.com/go-chi/chi/v5/middleware"
@@ -139,10 +142,53 @@ func NewRouter(svc *items.Service, projectsSvc *projects.Service, health HealthC
 	// Static frontend: anything not matching /api/v1/* or /healthz is
 	// served from the embedded web/ tree (design.md §8, PLAN.md §2.1 — no
 	// server-side templating).
+	//
+	// SPA fallback (frontend SPA merge): client-side routing means a real
+	// browser navigation to e.g. /projects (bookmark, manual URL entry, or
+	// a page refresh while on that view) is a genuine GET /projects
+	// request that has no corresponding file in webFS — only the router.js
+	// running INSIDE index.html knows how to render that route. Without
+	// this fallback such a request 404s. spaFallback serves index.html for
+	// any GET/HEAD request whose path does not resolve to a real file in
+	// webFS, so CSS/JS modules/manifest/icons continue to resolve
+	// normally (they exist in webFS and are served as-is) and only
+	// unmatched, HTML-navigation-shaped routes fall back to the shell.
 	fileServer := http.FileServer(http.FS(webFS))
-	r.NotFound(func(w http.ResponseWriter, r *http.Request) {
-		fileServer.ServeHTTP(w, r)
-	})
+	r.NotFound(spaFallback(webFS, fileServer))
 
 	return r
+}
+
+// spaFallback wraps the embedded-FS file server: if the request is a
+// GET/HEAD for a path that does not exist in webFS, it serves index.html
+// instead of a 404 (classic SPA server-side fallback). Any path that DOES
+// exist (app.css, js/*.js, manifest.json, assets/*, fonts/*, login.html)
+// is served as-is by fileServer, unchanged from before this fallback
+// existed.
+func spaFallback(webFS fs.FS, fileServer http.Handler) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodGet && r.Method != http.MethodHead {
+			fileServer.ServeHTTP(w, r)
+			return
+		}
+
+		cleanPath := strings.TrimPrefix(path.Clean(r.URL.Path), "/")
+		if cleanPath == "" || cleanPath == "." {
+			cleanPath = "index.html"
+		}
+
+		if _, err := fs.Stat(webFS, cleanPath); err != nil {
+			// No real file at this path — treat it as a client-side route
+			// and serve the SPA shell so router.js can render it.
+			r2 := new(http.Request)
+			*r2 = *r
+			r2.URL = new(url.URL)
+			*r2.URL = *r.URL
+			r2.URL.Path = "/index.html"
+			fileServer.ServeHTTP(w, r2)
+			return
+		}
+
+		fileServer.ServeHTTP(w, r)
+	}
 }
