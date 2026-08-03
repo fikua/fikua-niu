@@ -442,7 +442,7 @@ updated: "2026-08-03"
 
 - [x] **C-01** — Append changelog entry (`docs.changelog` from manifest)
 - [ ] **C-02** — Transition backlog item to `Human Review` via the adapter
-- [ ] **C-03** — Propose semver bump (ASK USER — never apply unattended)
+- [x] **C-03** — Propose semver bump (ASK USER — never apply unattended) — v0.1.0 cut, approved by user
 
 ## 2. AC ↔ tasks traceability matrix
 
