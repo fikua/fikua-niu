@@ -26,6 +26,18 @@ import (
 // whatever fields were already found up to that point are still
 // returned, marked Partial — this is deliberately a fallback outcome, not
 // a fatal error of the fetch itself.
+// ParseOpenGraphForTesting exposes the same Open Graph tokenizer used by
+// FetchPreview, for integration tests that exercise the ideas HTTP
+// surface against a local httptest.Server (which fetchsafe's own IP
+// allowlist correctly refuses to dial, since it always binds to
+// loopback) — see tests/integration/ideas_test_server_test.go. Pure
+// parsing, no network access, no SSRF implication: this is safe to
+// expose because it never decides what gets fetched, only what a
+// caller-supplied byte stream contains.
+func ParseOpenGraphForTesting(r io.Reader) (Preview, error) {
+	return parseOpenGraph(r)
+}
+
 func parseOpenGraph(r io.Reader) (Preview, error) {
 	tokenizer := html.NewTokenizer(r)
 

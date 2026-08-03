@@ -51,3 +51,21 @@ type projectDTO struct {
 type projectsListResponse struct {
 	Projects []projectDTO `json:"projects"`
 }
+
+// ideaDTO mirrors the wire shape of httpapi.ideaDTO (design.md §6.1) —
+// duplicated here because the field is unexported in internal/httpapi;
+// integration tests only care about the JSON contract.
+type ideaDTO struct {
+	ID            int64     `json:"id"`
+	URL           string    `json:"url"`
+	Title         *string   `json:"title"`
+	ImageURL      *string   `json:"image_url"`
+	Description   *string   `json:"description"`
+	PreviewStatus string    `json:"preview_status"`
+	AddedBy       *userDTO  `json:"added_by"`
+	CreatedAt     time.Time `json:"created_at"`
+}
+
+type ideasListResponse struct {
+	Ideas []ideaDTO `json:"ideas"`
+}

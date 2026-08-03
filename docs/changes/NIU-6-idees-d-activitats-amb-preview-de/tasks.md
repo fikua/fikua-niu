@@ -312,7 +312,7 @@ updated: "2026-08-03"
   sense cap etiqueta OG reconeguda o malformat (EC-05, tractat com a
   "no trobat", no com a crash de parsing). · *covers:* AC-01, AC-03,
   EC-05
-- [ ] **T-22** — Afegir tests d'integració contra un servidor HTTP de
+- [x] **T-22** — Afegir tests d'integració contra un servidor HTTP de
   test controlat (mock local, mai internet real — imprescindible per a
   tots els casos SSRF) per a EC-03/EC-08/EC-09: resposta de mida molt
   superior al límit de 2 MiB (EC-03, assert que la descàrrega s'atura i
@@ -321,20 +321,20 @@ updated: "2026-08-03"
   indefinida a la UI); `Content-Type` no HTML — PDF/imatge/vídeo
   (EC-09, assert que no s'intenta parsing OG). · *covers:* AC-02,
   EC-03, EC-08, EC-09, NFR-07
-- [ ] **T-23** — Afegir test d'integració per a AC-01/AC-04/AC-06 amb
+- [x] **T-23** — Afegir test d'integració per a AC-01/AC-04/AC-06 amb
   el servidor de test simulant OG complet: `POST` amb enllaç vàlid →
   `GET` posterior mostra la idea com a targeta amb títol/imatge/
   descripció, autoria visible, i persisteix després de "recarregar"
   (segona consulta `GET`). · *covers:* AC-01, AC-04, AC-08 (base
   contrast amb NIU-1/NIU-5)
-- [ ] **T-24** — Afegir test d'integració per a AC-02/AC-03 amb el
+- [x] **T-24** — Afegir test d'integració per a AC-02/AC-03 amb el
   servidor de test simulant un bloqueig d'accés (403), un timeout, i
   metadades OG parcials: assert que la idea es desa igualment en tots
   tres casos (mai error bloquejant), amb `preview_status` `failed` o
   `partial` segons el cas, i que el `POST` original no ha esperat el
   resultat del scraping (ADR-03, resposta `201` immediata). · *covers:*
   AC-02, AC-03
-- [ ] **T-25** — Afegir test d'integració per a AC-05/AC-09/EC-15/EC-16
+- [x] **T-25** — Afegir test d'integració per a AC-05/AC-09/EC-15/EC-16
   (`ideas_test.go`, mateix patró `newTestServer`/`doJSON` establert):
   `DELETE` elimina la idea de la llista i no reapareix en un `GET`
   posterior; doble `DELETE` sobre el mateix `id` idempotent sense 5xx
@@ -342,7 +342,7 @@ updated: "2026-08-03"
   idees independents sense 5xx ni estat corrupte (EC-16, documentat
   explícitament com a **no** idempotent, a diferència d'EC-15). ·
   *covers:* AC-05, AC-09, EC-15, EC-16
-- [ ] **T-26** — Afegir test d'integració amb dos clients simulats per
+- [x] **T-26** — Afegir test d'integració amb dos clients simulats per
   a AC-06/EC-06/EC-17: un client afegeix i un altre elimina una idea,
   el segon client veu la llista actualitzada (incloent-hi targetes amb
   previsualització i idees en fallback) en el següent `GET` (AC-06);
@@ -350,7 +350,7 @@ updated: "2026-08-03"
   entrades independents (EC-06); llista buida en primer ús mostra un
   estat visual clar sense error (EC-17, E2E complementari). · *covers:*
   AC-06, EC-06, EC-17
-- [ ] **T-27** — Afegir tests unitaris/integració de seguretat
+- [x] **T-27** — Afegir tests unitaris/integració de seguretat
   reutilitzant exactament els patrons ja escrits per NIU-1/NIU-4/NIU-5
   (`security_test.go`, `sql_static_test.go`) aplicats a
   `/api/v1/ideas`: enllaç o metadada recuperada amb marcatge HTML/script
@@ -366,7 +366,7 @@ updated: "2026-08-03"
   capçaleres d'autenticació de Niu presents (NFR-08). · *covers:*
   AC-10, EC-11, EC-12, EC-13, EC-14, NFR-01, NFR-02, NFR-03, NFR-04,
   NFR-08
-- [ ] **T-27a** — Afegir test d'integració dedicat per a EC-02/EC-07
+- [x] **T-27a** — Afegir test d'integració dedicat per a EC-02/EC-07
   (destí prohibit per IP literal o per resolució DNS): URL amb IP
   literal `127.0.0.1`/`10.x.x.x`/`169.254.x.x` rebutjada sense
   completar la petició (EC-02); domini que **resol** (via un
@@ -376,14 +376,14 @@ updated: "2026-08-03"
   explícit de **zero connexió TCP establerta** cap al destí en tots dos
   casos, no només un error de resposta. · *covers:* EC-02, EC-07,
   NFR-06
-- [ ] **T-27b** — Afegir test d'integració dedicat per a la denylist de
+- [x] **T-27b** — Afegir test d'integració dedicat per a la denylist de
   noms d'amfitrió (T-03b, F-03/F-04): URL apuntant a `niu.fikua.com` i
   a un nom configurat via `NIU_PUBLIC_HOST` de test, ambdues
   rebutjades **abans** de qualsevol resolució DNS (assert 0 peticions
   DNS/TCP sortints), diferenciant aquest mecanisme del de validació
   d'IP (T-03c) perquè una implementació futura no el pugui ballar per
   descuit. · *covers:* NFR-06
-- [ ] **T-27c** — **[Regressió F-01 — obligatori, no genèric] Afegir
+- [x] **T-27c** — **[Regressió F-01 — obligatori, no genèric] Afegir
   test d'integració de redirecció al MATEIX host cap a un destí
   prohibit (EC-04).** Muntar un servidor de test que respongui `200` a
   la primera validació i, en un segon salt, respongui des del **mateix
@@ -396,7 +396,7 @@ updated: "2026-08-03"
   s'oblidés en un canvi futur. **No confondre amb, ni substituir per,**
   un test de redirecció cross-host genèric — aquest últim NO detecta
   F-01. · *covers:* EC-04, NFR-06
-- [ ] **T-27d** — **[Regressió F-02 — obligatori, no genèric] Afegir
+- [x] **T-27d** — **[Regressió F-02 — obligatori, no genèric] Afegir
   test d'integració amb destí en forma IPv4-mapejada-a-IPv6
   (`::ffff:127.0.0.1` i/o `::ffff:169.254.169.254`).** Petició directa
   (o via redirecció) cap a una d'aquestes adreces; assert que es
@@ -407,7 +407,7 @@ updated: "2026-08-03"
   mapejada sense `Unmap()` previ. **No confondre amb, ni substituir
   per,** el test genèric d'IP literal `127.0.0.1` d'T-27a — aquest
   últim NO detecta F-02. · *covers:* EC-04, NFR-06
-- [ ] **T-27e** — Afegir test d'integració per a NFR-09 (cache
+- [x] **T-27e** — Afegir test d'integració per a NFR-09 (cache
   at-save-time): desar una idea contra el servidor de test, fer
   diverses lectures consecutives de `GET /api/v1/ideas`, assert que el
   comptador de peticions sortints del servidor de test roman en **1**
