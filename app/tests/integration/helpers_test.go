@@ -363,6 +363,34 @@ func listProjectsAuthenticated(t *testing.T, srv *authTestServer, login loginRes
 	return list.Projects
 }
 
+// createIdeaAuthenticated performs POST /api/v1/ideas using an already
+// logged-in session's cookie/CSRF token (loginResult from doLogin) —
+// mirrors createProjectAuthenticated, used by CSRF tests that need at
+// least one real idea to delete (F-03).
+func createIdeaAuthenticated(t *testing.T, srv *authTestServer, login loginResult, url string) ideaDTO {
+	t.Helper()
+	res := doJSONWithCookie(t, http.MethodPost, srv.URL+"/api/v1/ideas", login.SessionToken, login.CSRFToken,
+		map[string]string{"url": url})
+	if res.StatusCode != http.StatusCreated {
+		var errBody errorResponse
+		decodeJSON(t, res, &errBody)
+		t.Fatalf("createIdeaAuthenticated(%q) status = %d, error = %+v", url, res.StatusCode, errBody)
+	}
+	var created ideaDTO
+	decodeJSON(t, res, &created)
+	return created
+}
+
+// listIdeasAuthenticated performs GET /api/v1/ideas with a session
+// cookie.
+func listIdeasAuthenticated(t *testing.T, srv *authTestServer, login loginResult) []ideaDTO {
+	t.Helper()
+	res := doJSONWithCookie(t, http.MethodGet, srv.URL+"/api/v1/ideas", login.SessionToken, "", nil)
+	var list ideasListResponse
+	decodeJSON(t, res, &list)
+	return list.Ideas
+}
+
 // assertNoItemWithName fails the test if any item with the given name
 // exists — used after an expected-to-be-rejected mutation to confirm it
 // truly had no effect (AC-07/S1b: "no produeix cap efecte").
