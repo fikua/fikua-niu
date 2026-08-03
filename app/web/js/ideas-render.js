@@ -8,26 +8,12 @@
 // (EC-11/NFR-01). List container is cleared with replaceChildren(),
 // never innerHTML = ''.
 //
-// KNOWN GAP (flagged for /audit, not resolved here — see final report):
-// proposal.md §8.2 Estat A/C specifies an <img> displaying the recovered
+// proposal.md §8.2 Estat A/C displays an <img> with the recovered
 // og:image, fetched directly by the browser from the external host
-// (design.md §6.1: image_url is the full external URL, e.g.
-// "https://example.com/img.jpg", never proxied through Niu's own
-// server). internal/httpapi's existing SecurityHeaders middleware
-// (design.md predates NIU-6, not part of this item's approved scope)
-// sends a Content-Security-Policy with `img-src 'self'` — under that
-// policy, EVERY external og:image is silently blocked by the browser,
-// regardless of what this file does. No artefact for NIU-6
-// (proposal.md/requirements.md/design.md/tasks.md) authorizes relaxing
-// that CSP directive, and doing so is a security-policy decision outside
-// a mechanical /code implementation. The <img> element below is wired
-// exactly as specified (real og:image URL, alt="", 16:9, object-fit:
-// cover) so the feature is complete and correct THE MOMENT the CSP
-// question is resolved (either by loosening img-src, or by routing
-// preview images through a same-origin proxy) — until then it will not
-// visually render in a browser with the current CSP. Every other part of
-// Estat A (title, description, link, avatar, delete button) is
-// unaffected and renders correctly today.
+// (design.md §6.1: image_url is the full external URL). CSP's
+// `img-src` was relaxed to `'self' https:` to allow this (see
+// internal/httpapi/middleware.go) — fetchsafe already guarantees
+// image_url only ever holds an http(s) URL that passed SSRF validation.
 
 import { t } from './strings.js';
 
@@ -139,7 +125,7 @@ function renderIdeaCardReady(idea, handlers) {
   if (idea.image_url) {
     const img = document.createElement('img');
     img.className = 'idea-image';
-    img.src = idea.image_url; // external URL by design (design.md §6.1) — see CSP gap note at top of file
+    img.src = idea.image_url; // external URL by design (design.md §6.1)
     img.alt = ''; // decorative (confirmed at Stage 1.5 human gate, proposal.md §8.6)
     img.loading = 'lazy';
     card.appendChild(img);
@@ -207,7 +193,7 @@ function renderIdeaCardPartial(idea, handlers) {
   if (idea.image_url) {
     const img = document.createElement('img');
     img.className = 'idea-image';
-    img.src = idea.image_url; // external URL by design (design.md §6.1) — see CSP gap note at top of file
+    img.src = idea.image_url; // external URL by design (design.md §6.1)
     img.alt = '';
     img.loading = 'lazy';
     card.appendChild(img);

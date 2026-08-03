@@ -46,7 +46,7 @@ func SecurityHeaders(next http.Handler) http.Handler {
 		h.Set("Referrer-Policy", "no-referrer")
 		h.Set("Content-Security-Policy",
 			"default-src 'self'; script-src 'self'; style-src 'self'; "+
-				"font-src 'self'; img-src 'self'; connect-src 'self'; "+
+				"font-src 'self'; img-src 'self' https:; connect-src 'self'; "+
 				"object-src 'none'; base-uri 'none'")
 		next.ServeHTTP(w, r)
 	})

@@ -760,12 +760,7 @@ header.app-header .wordmark {
 .idea-card:focus-within .delete-btn { opacity: 1; pointer-events: auto; }
 
 /* Estat A/C (proposal.md §8.2): 16:9 image, rounded only at the top so it
-   continues the card's own radius. KNOWN GAP (see ideas-render.js's
-   top-of-file comment): under the existing Content-Security-Policy
-   (img-src 'self'), the browser blocks this <img> from ever loading an
-   external og:image — this rule renders the reserved space correctly
-   today, but the photo itself will not appear until that CSP question is
-   resolved. */
+   continues the card's own radius. */
 .idea-image {
   width: 100%;
   aspect-ratio: 16 / 9;
