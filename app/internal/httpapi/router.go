@@ -13,6 +13,7 @@ import (
 
 	"niu/internal/auth"
 	"niu/internal/items"
+	"niu/internal/projects"
 )
 
 // HealthChecker is implemented by internal/store — a trivial query
@@ -39,6 +40,7 @@ type credentialAuthenticator interface {
 // Server holds the dependencies needed by the HTTP handlers.
 type Server struct {
 	items         *items.Service
+	projects      *projects.Service
 	health        HealthChecker
 	authenticator credentialAuthenticator
 	cookiesSecure bool
@@ -51,8 +53,8 @@ type Server struct {
 //
 // cookiesSecure controls the Secure attribute on the session/CSRF cookies
 // (design.md §6.1) — false only for local development over plain HTTP.
-func NewRouter(svc *items.Service, health HealthChecker, authenticator auth.Authenticator, webFS fs.FS, cookiesSecure bool) http.Handler {
-	s := &Server{items: svc, health: health, cookiesSecure: cookiesSecure}
+func NewRouter(svc *items.Service, projectsSvc *projects.Service, health HealthChecker, authenticator auth.Authenticator, webFS fs.FS, cookiesSecure bool) http.Handler {
+	s := &Server{items: svc, projects: projectsSvc, health: health, cookiesSecure: cookiesSecure}
 	s.authenticator, _ = authenticator.(credentialAuthenticator)
 
 	r := chi.NewRouter()
@@ -109,6 +111,26 @@ func NewRouter(svc *items.Service, health HealthChecker, authenticator auth.Auth
 				items.Route("/{id}", func(item chi.Router) {
 					item.Patch("/", s.handleUpdateItem)
 					item.Delete("/", s.handleDeleteItem)
+				})
+			}
+		})
+
+		// NIU-5: "compres grans i projectes de casa" — same
+		// WithCurrentUser/RequireCSRF pattern as /items above, no new auth
+		// surface (design.md §5/§8, EC-10/EC-11/NFR-04/NFR-05).
+		api.Route("/projects", func(proj chi.Router) {
+			proj.Get("/", s.handleListProjects)
+			if s.authenticator != nil {
+				proj.With(RequireCSRF(s.authenticator.SessionSecret())).Post("/", s.handleCreateProject)
+				proj.Route("/{id}", func(project chi.Router) {
+					project.With(RequireCSRF(s.authenticator.SessionSecret())).Patch("/", s.handlePatchProjectState)
+					project.With(RequireCSRF(s.authenticator.SessionSecret())).Delete("/", s.handleDeleteProject)
+				})
+			} else {
+				proj.Post("/", s.handleCreateProject)
+				proj.Route("/{id}", func(project chi.Router) {
+					project.Patch("/", s.handlePatchProjectState)
+					project.Delete("/", s.handleDeleteProject)
 				})
 			}
 		})

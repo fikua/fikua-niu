@@ -32,3 +32,22 @@ type errorResponse struct {
 		Message string `json:"message"`
 	} `json:"error"`
 }
+
+// projectDTO mirrors the wire shape of httpapi.projectDTO (design.md
+// §6.1) — duplicated here because the field is unexported in
+// internal/httpapi; integration tests only care about the JSON contract.
+type projectDTO struct {
+	ID            int64     `json:"id"`
+	Name          string    `json:"name"`
+	State         string    `json:"state"`
+	Budget        *string   `json:"budget"`
+	TargetDate    *string   `json:"target_date"`
+	AddedBy       *userDTO  `json:"added_by"`
+	LastUpdatedBy *userDTO  `json:"last_updated_by"`
+	CreatedAt     time.Time `json:"created_at"`
+	UpdatedAt     time.Time `json:"updated_at"`
+}
+
+type projectsListResponse struct {
+	Projects []projectDTO `json:"projects"`
+}

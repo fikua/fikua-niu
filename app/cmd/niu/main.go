@@ -1,8 +1,9 @@
 // Command niu is the single Go binary serving both the JSON API
 // (/api/v1/*) and the static frontend (embedded web/) from the same
 // process (PLAN.md §2.1). Wiring order: config → store → credential seed →
-// items.Service → auth.PasswordAuthenticator → cleanup goroutine →
-// httpapi.NewRouter (design.md §5/§6.2, T-19).
+// items.Service → projects.Service (NIU-5, same *Store/config/
+// authenticator, no change to items' wiring) → auth.PasswordAuthenticator
+// → cleanup goroutine → httpapi.NewRouter (design.md §5/§6.2, T-19).
 package main
 
 import (
@@ -23,6 +24,7 @@ import (
 	"niu/internal/config"
 	"niu/internal/httpapi"
 	"niu/internal/items"
+	"niu/internal/projects"
 	"niu/internal/store"
 )
 
@@ -56,6 +58,9 @@ func run() error {
 	repo := store.NewItemsRepository(st.DB)
 	svc := items.NewService(repo, repo, repo)
 
+	projectsRepo := store.NewProjectsRepository(st.DB)
+	projectsSvc := projects.NewService(projectsRepo, projectsRepo)
+
 	authenticator, err := auth.NewPasswordAuthenticator(st.DB, cfg.SessionSecret)
 	if err != nil {
 		return err
@@ -67,7 +72,7 @@ func run() error {
 	}
 
 	cookiesSecure := cfg.Env != "development"
-	router := httpapi.NewRouter(svc, st, authenticator, webFS, cookiesSecure)
+	router := httpapi.NewRouter(svc, projectsSvc, st, authenticator, webFS, cookiesSecure)
 
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()

@@ -22,6 +22,7 @@ import (
 	"niu/internal/auth"
 	"niu/internal/httpapi"
 	"niu/internal/items"
+	"niu/internal/projects"
 	"niu/internal/store"
 )
 
@@ -63,10 +64,12 @@ func newTestServer(t *testing.T, userID int64) *testServer {
 
 	repo := store.NewItemsRepository(st.DB)
 	svc := items.NewService(repo, repo, repo)
+	projectsRepo := store.NewProjectsRepository(st.DB)
+	projectsSvc := projects.NewService(projectsRepo, projectsRepo)
 	authenticator := auth.StubAuthenticator{UserID: userID}
 
 	var emptyFS fs.FS = fstest.MapFS{}
-	router := httpapi.NewRouter(svc, st, authenticator, emptyFS, true)
+	router := httpapi.NewRouter(svc, projectsSvc, st, authenticator, emptyFS, true)
 	srv := httptest.NewServer(router)
 	t.Cleanup(srv.Close)
 
@@ -117,6 +120,8 @@ func newAuthTestServer(t *testing.T) *authTestServer {
 
 	repo := store.NewItemsRepository(st.DB)
 	svc := items.NewService(repo, repo, repo)
+	projectsRepo := store.NewProjectsRepository(st.DB)
+	projectsSvc := projects.NewService(projectsRepo, projectsRepo)
 
 	authenticator, err := auth.NewPasswordAuthenticator(st.DB, sessionSecret)
 	if err != nil {
@@ -124,7 +129,7 @@ func newAuthTestServer(t *testing.T) *authTestServer {
 	}
 
 	var emptyFS fs.FS = fstest.MapFS{}
-	router := httpapi.NewRouter(svc, st, authenticator, emptyFS, true)
+	router := httpapi.NewRouter(svc, projectsSvc, st, authenticator, emptyFS, true)
 	srv := httptest.NewServer(router)
 	t.Cleanup(srv.Close)
 
@@ -299,6 +304,34 @@ func listItemsAuthenticated(t *testing.T, srv *authTestServer, login loginResult
 	var list itemsListResponse
 	decodeJSON(t, res, &list)
 	return list.Items
+}
+
+// createProjectAuthenticated performs POST /api/v1/projects using an
+// already logged-in session's cookie/CSRF token (loginResult from
+// doLogin) — mirrors createItemAuthenticated, used by CSRF tests that need
+// at least one real project to change state on / delete (F-21).
+func createProjectAuthenticated(t *testing.T, srv *authTestServer, login loginResult, name string) projectDTO {
+	t.Helper()
+	res := doJSONWithCookie(t, http.MethodPost, srv.URL+"/api/v1/projects", login.SessionToken, login.CSRFToken,
+		map[string]string{"name": name})
+	if res.StatusCode != http.StatusCreated {
+		var errBody errorResponse
+		decodeJSON(t, res, &errBody)
+		t.Fatalf("createProjectAuthenticated(%q) status = %d, error = %+v", name, res.StatusCode, errBody)
+	}
+	var created projectDTO
+	decodeJSON(t, res, &created)
+	return created
+}
+
+// listProjectsAuthenticated performs GET /api/v1/projects with a session
+// cookie.
+func listProjectsAuthenticated(t *testing.T, srv *authTestServer, login loginResult) []projectDTO {
+	t.Helper()
+	res := doJSONWithCookie(t, http.MethodGet, srv.URL+"/api/v1/projects", login.SessionToken, "", nil)
+	var list projectsListResponse
+	decodeJSON(t, res, &list)
+	return list.Projects
 }
 
 // assertNoItemWithName fails the test if any item with the given name

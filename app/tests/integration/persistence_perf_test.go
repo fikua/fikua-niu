@@ -14,6 +14,7 @@ import (
 	"niu/internal/auth"
 	"niu/internal/httpapi"
 	"niu/internal/items"
+	"niu/internal/projects"
 	"niu/internal/store"
 )
 
@@ -108,9 +109,11 @@ func TestListItems_P95Latency_With500Items(t *testing.T) {
 
 	repo := store.NewItemsRepository(st.DB)
 	svc := items.NewService(repo, repo, repo)
+	projectsRepo := store.NewProjectsRepository(st.DB)
+	projectsSvc := projects.NewService(projectsRepo, projectsRepo)
 	authenticator := auth.StubAuthenticator{UserID: seedUserAID}
 	var emptyFS = fstest.MapFS{}
-	router := httpapi.NewRouter(svc, st, authenticator, emptyFS, true)
+	router := httpapi.NewRouter(svc, projectsSvc, st, authenticator, emptyFS, true)
 	testSrv := httptest.NewServer(router)
 	defer testSrv.Close()
 

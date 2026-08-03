@@ -10,6 +10,7 @@
 import { test, expect } from '@playwright/test';
 import AxeBuilder from '@axe-core/playwright';
 import { uniqueName, addItem, cleanupItem } from './helpers.js';
+import { uniqueProjectName, addProject, cleanupProject } from './projects-helpers.js';
 
 test.describe('axe-core WCAG 2.2 AA audit', () => {
   test('desktop layout has no automatically-detectable accessibility violations', async ({ page }) => {
@@ -39,5 +40,20 @@ test.describe('axe-core WCAG 2.2 AA audit', () => {
     expect(results.violations, JSON.stringify(results.violations, null, 2)).toEqual([]);
 
     await cleanupItem(page, name);
+  });
+
+  // NIU-5/NFR-06: same automated audit applied to the projects space, with
+  // at least one row present (state badges, avatars, delete-btn contrast).
+  test('projects space has no automatically-detectable accessibility violations', async ({ page }) => {
+    const name = uniqueProjectName('A11yProjects');
+    await addProject(page, name);
+
+    const results = await new AxeBuilder({ page })
+      .withTags(['wcag2a', 'wcag2aa', 'wcag22aa'])
+      .analyze();
+
+    expect(results.violations, JSON.stringify(results.violations, null, 2)).toEqual([]);
+
+    await cleanupProject(page, name);
   });
 });

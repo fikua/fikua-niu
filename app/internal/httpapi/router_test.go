@@ -12,6 +12,7 @@ import (
 
 	"niu/internal/auth"
 	"niu/internal/items"
+	"niu/internal/projects"
 )
 
 // TestNoMutatingGETRoutes introspects the chi route table (EC-08/NFR-04)
@@ -19,7 +20,7 @@ import (
 // registered on the exact same pattern — i.e. GET is never wired to a
 // handler shared with a mutating method.
 func TestNoMutatingGETRoutes(t *testing.T) {
-	router := NewRouter(nil, fakeHealthChecker{}, fakeAuthenticator{}, fstest.MapFS{}, true)
+	router := NewRouter(nil, nil, fakeHealthChecker{}, fakeAuthenticator{}, fstest.MapFS{}, true)
 
 	chiRouter, ok := router.(chi.Router)
 	if !ok {
@@ -45,9 +46,10 @@ func TestNoMutatingGETRoutes(t *testing.T) {
 	// deliberate update here fails the test — which is the point: EC-08
 	// must break loudly if someone wires a mutation behind a GET.
 	wantGET := map[string]bool{
-		"/healthz":       true,
-		"/api/v1/me":     true,
-		"/api/v1/items/": true,
+		"/healthz":          true,
+		"/api/v1/me":        true,
+		"/api/v1/items/":    true,
+		"/api/v1/projects/": true,
 	}
 	for route := range getRoutes {
 		if !wantGET[route] {
@@ -70,7 +72,9 @@ func TestNoMutatingGETRoutes(t *testing.T) {
 func TestGETRequestsDoNotMutateState(t *testing.T) {
 	repo := &spyRepo{}
 	svc := items.NewService(repo, &spySink{}, &spyUsers{})
-	router := NewRouter(svc, fakeHealthChecker{}, fakeAuthenticator{}, fstest.MapFS{}, true)
+	projectsRepo := &spyProjectsRepo{}
+	projectsSvc := projects.NewService(projectsRepo, &spySink{})
+	router := NewRouter(svc, projectsSvc, fakeHealthChecker{}, fakeAuthenticator{}, fstest.MapFS{}, true)
 
 	chiRouter, ok := router.(chi.Router)
 	if !ok {
@@ -102,6 +106,11 @@ func TestGETRequestsDoNotMutateState(t *testing.T) {
 		t.Errorf("GET requests triggered %d mutating repository call(s) (%v); "+
 			"no GET may create, move or delete (EC-08/NFR-04)",
 			len(repo.mutations), repo.mutations)
+	}
+	if len(projectsRepo.mutations) != 0 {
+		t.Errorf("GET requests triggered %d mutating projects repository call(s) (%v); "+
+			"no GET may create, change state or delete (EC-10/NFR-04)",
+			len(projectsRepo.mutations), projectsRepo.mutations)
 	}
 }
 
@@ -139,6 +148,37 @@ func (r *spyRepo) ExistsByNormalizedName(_ context.Context, _ string) (bool, ite
 
 func (r *spyRepo) MaxPosition(_ context.Context, _ items.Location) (float64, bool, error) {
 	return 0, false, nil
+}
+
+// spyProjectsRepo mirrors spyRepo for the projects domain (EC-10/NFR-04):
+// records every mutating call so a test can assert none happened.
+type spyProjectsRepo struct {
+	mutations []string
+}
+
+func (r *spyProjectsRepo) Create(_ context.Context, _ int64, _, _ string, _, _ *string) (projects.Project, error) {
+	r.mutations = append(r.mutations, "Create")
+	return projects.Project{}, nil
+}
+
+func (r *spyProjectsRepo) UpdateState(_ context.Context, _, _ int64, _ projects.State) (projects.Project, projects.State, error) {
+	r.mutations = append(r.mutations, "UpdateState")
+	return projects.Project{}, "", nil
+}
+
+func (r *spyProjectsRepo) Delete(_ context.Context, _ int64) (bool, error) {
+	r.mutations = append(r.mutations, "Delete")
+	return false, nil
+}
+
+func (r *spyProjectsRepo) Get(_ context.Context, _ int64) (projects.Project, error) {
+	return projects.Project{}, projects.ErrNotFound{}
+}
+
+func (r *spyProjectsRepo) List(_ context.Context) ([]projects.Project, error) { return nil, nil }
+
+func (r *spyProjectsRepo) ExistsByNormalizedName(_ context.Context, _ string) (bool, error) {
+	return false, nil
 }
 
 type spySink struct{}
