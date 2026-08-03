@@ -2,13 +2,13 @@
 artefact: review
 key: "NIU-5"                  # REQUIRED — must match tasks.key
 title: "Compres grans i projectes de casa"
-status: "changes_requested"
-verdict: "CHANGES_REQUESTED"
+status: "approved"
+verdict: "APPROVED"
 owner: "code-reviewer"
 co_reviewers: ["qa-engineer", "security-engineer", "ux-ui-designer"]
 tasks_path: "./tasks.md"              # REQUIRED — relative
-findings_count: 5                     # F-20, F-21, F-22 (security-engineer) + F-23, F-24 (code-reviewer)
-blocking_count: 0                     # 0 blocking; 2 major (F-20, F-23) trigger CHANGES_REQUESTED per the severity-cluster rule
+findings_count: 5                     # F-20, F-21, F-22 (security-engineer) + F-23, F-24 (code-reviewer) — all resolved or non-blocking, see §1.1 re-audit note
+blocking_count: 0                     # 0 blocking, both rounds. Re-audit: F-20 and F-23 (the two majors from round 1) are now resolved, leaving 0 major — no cluster left to force CHANGES_REQUESTED
 sources:
   - "OWASP Code Review Top 10 (2017)"
   - "Google Engineering Practices — Code Review Developer Guide"
@@ -27,7 +27,7 @@ updated: "2026-08-03"
 > One of: `APPROVED` · `CHANGES_REQUESTED` · `PENDING`.
 > Mirror this into the front-matter `verdict` field.
 
-**Verdict:** `CHANGES_REQUESTED`
+**Verdict:** `APPROVED`
 
 **Rationale (one paragraph):**
 
@@ -51,6 +51,95 @@ findings, which per the `code-review-checklist` severity ladder forces
 straightforward to fix (wrap `Get`+`UpdateState` in one transaction;
 redact two names) and do not require touching approved scope, design, or
 tests.
+
+### 1.1 Re-audit note (2026-08-03) — F-23, F-20, F-21 verified fixed
+
+Three commits landed since the round above: `e9ba82e` (F-23 fix + F-21
+CSRF tests), `069a91c` (F-20 fix), `755dece` (this review.md, committed
+pre-fix for audit-trail purposes). I independently re-verified all three
+fixes against the actual diff and a live test run — not against the commit
+messages' claims:
+
+- **F-23 — genuinely fixed.** Read `app/internal/store/projects.go`
+  `UpdateState` and `app/internal/projects/service.go` `ChangeState`
+  end-to-end. `Service.ChangeState` no longer calls `s.repo.Get()` before
+  `UpdateState`; the `Repository.UpdateState` signature now returns
+  `(project Project, previousState State, err error)`, and the store
+  implementation reads `SELECT state FROM projects WHERE id = ?` on the
+  *same acquired `conn`*, inside the *same* `BEGIN IMMEDIATE` critical
+  section, immediately before the `UPDATE` — not a separate round-trip.
+  As a bonus (same finding's root cause, not scope creep), the fix also
+  moved the post-update `SELECT` used to build the response `Project`
+  onto the same conn, before `COMMIT`, closing an adjacent race on the
+  event's `"to"` value that the original finding didn't call out
+  explicitly but is the same defect class. The `Repository` interface and
+  the unit-test `fakeRepo` were updated in lockstep (`projects.go:69`,
+  `fake_repo_test.go:80`) — no call site left on the old two-value
+  signature.
+  - Regression test: the pre-existing
+    `TestProjects_ConcurrentStateChange_Repeated` (25 real-goroutine
+    rounds) was extended with a new helper,
+    `assertStateChangedEventChainIsConsistent`, which queries every
+    `project_state_changed` event row for the project and asserts the
+    `from`/`to` values form a valid two-step chain starting at `"idea"`,
+    checked order-independently of `events.id` (correctly, since
+    `sink.Record` is a separate post-commit call and can reorder relative
+    to `UpdateState`'s own commit order). This is a real assertion on the
+    bug class, not a re-statement of "no 5xx" — I confirmed by reading the
+    assertion logic, not just trusting the test name.
+  - Ran `go test ./tests/integration/... -run TestProjects_ConcurrentStateChange -v -count=3`: **3/3 runs pass** (75 total race rounds across the 3×25 repeated-round loop), no flake.
+  - Ran the full race detector suite, `go test ./... -race -count=1`, across every package (`internal/auth`, `internal/config`, `internal/httpapi`, `internal/items`, `internal/projects`, `tests/integration`): **all `ok`, zero data races reported.**
+  - **Conclusion: resolved.** The read-then-write is now a single atomic critical section; the regression test would have caught the original defect (verified by inspecting its assertion, which directly encodes the corruption scenario F-23 described) and it passes reliably under repetition.
+
+- **F-20 — genuinely fixed.** `git show 069a91c --stat` confirms the
+  commit touches exactly `BACKLOG.md`,
+  `docs/changes/NIU-5-.../proposal.md`, and
+  `docs/changes/NIU-6-.../proposal.md` — the three files F-20 named as
+  newly introducing real names. Ran
+  `grep -rn "Oriol\|Joana" BACKLOG.md CHANGELOG.md docs/changes/NIU-5-*/*.md docs/changes/NIU-6-*/*.md`
+  directly against the working tree: **zero matches** across all of
+  `BACKLOG.md`, `CHANGELOG.md`, and every `.md` file in both change
+  folders (including this `review.md` itself, which only ever referred to
+  the names in the abstract, e.g. "two real person names", never quoting
+  them literally).
+  - **Conclusion: resolved**, for the part attributable to this item's
+    diff. The pre-existing, separate `app/users.json` real-name↔username
+    mapping noted in the original F-20 observation is explicitly *not*
+    part of this item's scope (it predates NIU-5 on `main`) and remains a
+    tracked follow-up, not a blocker for this re-audit.
+
+- **F-21 — genuinely fixed (delivered alongside the F-23 fix, same commit `e9ba82e`).**
+  `app/tests/integration/csrf_test.go` now has
+  `TestCSRF_Projects_PostWithoutToken_Rejected`,
+  `TestCSRF_Projects_PatchWithoutToken_Rejected`, and
+  `TestCSRF_Projects_DeleteWithoutToken_Rejected`, mirroring the existing
+  `/items` CSRF test shape exactly. Ran
+  `go test ./tests/integration/... -run TestCSRF_Projects -v`: **all 3
+  pass** — POST/PATCH/DELETE against `/api/v1/projects` (and
+  `/api/v1/projects/{id}`) without a CSRF token each return `403`, and a
+  follow-up `GET` confirms no mutation occurred. This closes the "silent
+  regression" risk the original finding described (a route accidentally
+  moved to the no-CSRF branch would now fail these tests).
+
+- **No new blocking/major issue introduced by the fix itself.** The
+  `UpdateState` signature change is the only public-surface change in this
+  round; it is confined to the `projects` package boundary
+  (`Repository` interface + its one production implementation + its one
+  test double), with no other call sites to update. `gofmt -l .`,
+  `go vet ./...`, and `go build ./...` are all clean post-fix.
+
+**Verdict composition:** F-23 and F-20 were the only two `major` findings
+driving `CHANGES_REQUESTED` in round 1 (per the severity-cluster rule —
+2+ majors force `CHANGES_REQUESTED` even with 0 `blocking`). Both are now
+resolved, and F-21 (`minor`) is also resolved. That leaves, unchanged from
+round 1: F-24 (nit, non-blocking), qa-engineer's 2 `⚠️ partial` NFR rows
+(NFR-02, NFR-07 — coverage gaps, not broken behaviour, explicitly called
+out as non-blocking in the original §2), and ux-ui-designer's M-1/M-2
+(minor, non-blocking). None of these force `CHANGES_REQUESTED` on their
+own under this ruleset (only `blocking` findings, or a 2+ `major` cluster,
+or a ❌ in the AC↔test matrix, or a failing test/typecheck gate do). With
+zero remaining `major`/`blocking` findings and all gates green, the
+verdict changes to **`APPROVED`**.
 
 ## 2. AC ↔ test coverage matrix
 
@@ -122,6 +211,7 @@ tests.
 - **Observation:** `ChangeState` calls `s.repo.Get(ctx, id)` to read `previous.State` for the event payload, then separately calls `s.repo.UpdateState(...)`, which opens its own `BEGIN IMMEDIATE` transaction. The `Get` and the `UpdateState` are **two independent round-trips**, not one critical section — a classic instance of this project's recurring check-then-act defect class already found on NIU-1 (F-02, non-transactional move) and NIU-4 (F-01, rate limiter `Allow`/`RecordFailure`). I confirmed this empirically with a throwaway concurrent probe against a fake repo mirroring the real locking shape (200 rounds, two goroutines racing `ChangeState` on the same id from `idea`): both concurrent calls' events recorded `"from":"idea"`, even though only one of the two `UpdateState` transactions could have genuinely observed `idea` as the row's state immediately before its own commit — the second one's true "from" was actually the first one's "to". `TestProjects_ChangeState_WritesEventWithFromTo` and `TestProjects_ConcurrentStateChange_*` (T-27/T-28) only assert that *a* `project_state_changed` row exists with *some* `from`/`to`, or that the *final* state converges without a 5xx — none of them assert the `from` is correct under concurrent access to the same row, so this gap is currently invisible to the green suite.
 - **Why it matters:** `design.md` §2.3/ADR context and `requirements.md` NFR-01 both anchor this item's data-integrity story on `events` being a trustworthy, inspectable audit trail of every state transition ("100% dels canvis d'estat queden reflectits com a esdeveniment... verificable per inspecció directa"). A wrong `from` under exactly the concurrency scenario this item's own AC-07/T-28 exists to exercise means the audit trail can silently lie about what happened — the same class of guarantee this project has already had to fix twice (NIU-1, NIU-4), and the human owner's stated control mechanism (`docs/test-plan.md`) trusts these events to be accurate, not just present.
 - **Suggested fix:** move the "read previous state" step inside the same `BEGIN IMMEDIATE` transaction as the `UPDATE` in `ProjectsRepository.UpdateState` (e.g. `SELECT state FROM projects WHERE id = ?` on the same `conn` right before the `UPDATE`, returning both old and new state to the service layer), so the event's `from` is guaranteed to be the value truly overwritten by that specific commit. `Service.ChangeState` then drops its separate `repo.Get` call for this purpose entirely.
+- **RESOLVED (2026-08-03, commit `e9ba82e`):** verified fixed exactly as suggested — see §1.1 for the full re-audit trail (code read, regression test inspected, `-run ... -count=3` and full `-race` suite both green).
 
 ### F-24 — `errors.go` codes are declared but two are unreachable from any caller path shown in the diff
 
@@ -251,7 +341,7 @@ shadow or type-scale value was introduced.
 ## 5. Code-quality checklist (Google Engineering Practices subset)
 
 - [x] **Design** — right shape for the codebase: `internal/projects` mirrors `internal/items`' `Repository`/`Service`/domain-type trio exactly (ADR-01), reuses `items.NormalizeName` as the sole intentional coupling (ADR-02), reuses `WithCurrentUser`/`RequireCSRF`/`events` verbatim. `router.go`/`main.go` changes are the surgical additions `tasks.md` §6 mandated — `items_handlers.go`/`auth_handlers.go`/`csrf.go` untouched, confirmed by diff.
-- [ ] **Functionality** — correct for users with one gap: F-23 (major) — the event audit trail's `from` can be wrong under the exact concurrency scenario AC-07 targets, even though the actual state transition and HTTP response codes are correct.
+- [x] **Functionality** — correct for users. F-23 (major, resolved 2026-08-03 in `e9ba82e`) previously found the event audit trail's `from` could be wrong under the exact concurrency scenario AC-07 targets; the prior-state read now happens inside the same `BEGIN IMMEDIATE` transaction as the write, verified against the code and a 3× repeated run of the extended regression test plus the full `-race` suite (see §1.1).
 - [x] **Complexity** — no speculative generality; `ChangeState` correctly has no forbidden-transition state machine (AC-09 requires none). `UpdateState`'s `BEGIN IMMEDIATE` pattern is copy-consistent with `ItemsRepository.Update`, not reinvented.
 - [x] **Tests** — present, sized appropriately, assert behaviour not implementation (e.g. `TestProjects_ConcurrentStateChange_Repeated` runs 25 real-goroutine rounds, matching this project's own established anti-flake bar from NIU-1's `TestTwoUsers_ConcurrentMove_Repeated`). No tautological "test that can't fail" pattern found this time (checked `router_test.go`'s route-table assertion specifically, given the NIU-1 history) — `wantGET` is a real allowlist that would break if a mutating route were added to it.
 - [x] **Naming** — clear and conventional; matches `internal/items`' naming 1:1 (`Service`, `Repository`, `ErrDuplicate`, `ErrNotFound`, `ErrValidation`). One nit (F-24) on `Validation*` constant naming symmetry.
@@ -476,6 +566,7 @@ cap credencial.
   (no bloqueja NIU-5), treure `app/users.json` del control de versions
   injectant-lo per entorn tal com ja fa `PLAN.md` §3 S9/S11, valorant la
   reescriptura d'historial o la rotació de noms d'usuari.
+- **RESOLT (2026-08-03, commit `069a91c`):** verificat — `grep -rn "Oriol\|Joana"` contra `BACKLOG.md`, `CHANGELOG.md` i tots els `.md` de `docs/changes/NIU-5-*/` i `docs/changes/NIU-6-*/` retorna zero coincidències. Veure §1.1. El seguiment separat sobre `app/users.json` (preexistent a `main`, fora d'abast d'aquest ítem) queda pendent, no bloqueja.
 
 #### F-21 — Les rutes de `/api/v1/projects` no tenen cap test de CSRF propi
 
@@ -500,6 +591,7 @@ cap credencial.
 - **Correcció suggerida:** afegir a `csrf_test.go` l'equivalent de
   `TestCSRF_PatchWithoutToken_Rejected` i
   `TestCSRF_DeleteWithoutToken_Rejected` apuntant a `/api/v1/projects/{id}`.
+- **RESOLT (2026-08-03, commit `e9ba82e`):** afegits i verificats `TestCSRF_Projects_PostWithoutToken_Rejected`, `TestCSRF_Projects_PatchWithoutToken_Rejected`, `TestCSRF_Projects_DeleteWithoutToken_Rejected` — els 3 passen (`403` sense token, `GET` de seguiment confirma zero mutació). Veure §1.1.
 
 #### F-22 — Sense escaneig de vulnerabilitats de dependències al projecte
 
@@ -552,22 +644,24 @@ d'una regla vinculant de dades personals en un repositori públic — la
 part atribuïble a NIU-5 (`BACKLOG.md`, `proposal.md`) es resol amb una
 edició de text abans del PR.
 
-## 7. Action items (only if `CHANGES_REQUESTED`)
+**Actualització 2026-08-03 (re-audit):** F-20 i F-21 verificats resolts —
+veure §1.1. Zero troballes de seguretat `major`/`blocking` pendents
+d'aquest ítem.
+
+## 7. Action items
 
 > Numbered, with owner and pointer back to the finding.
+> Items 1–3 below were the blocking/non-blocking action items from round 1
+> — all landed and verified (see §1.1). Item 4 remains open, non-blocking,
+> at the developer's discretion (unchanged from round 1).
 
-1. Make `ChangeState`'s read of the prior state part of the same `BEGIN IMMEDIATE` transaction as `UpdateState`, so the `project_state_changed` event's `from` field is guaranteed correct under concurrent access to the same project — owner: `fullstack-developer` — fixes: F-23
-2. Replace the two real person names newly introduced in `BACKLOG.md`/`proposal.md` with `Usuari A`/`Usuari B` before `/commit` (public repo, `PLAN.md` §3 S11) — owner: `fullstack-developer` — fixes: F-20 (security-engineer, §6)
-3. (Optional, non-blocking) Add `TestCSRF_PatchWithoutToken_Rejected`/`TestCSRF_DeleteWithoutToken_Rejected` for `/api/v1/projects/{id}` — owner: `fullstack-developer` — fixes: F-21 (security-engineer, §6, minor — does not block this verdict alone)
-4. (Optional, non-blocking) Add a CI-level `grep -r innerHTML app/web/` style static check to close the measurement half of NFR-02, and a poll-reflected-announcement E2E case for NFR-07 — owner: `fullstack-developer` — fixes: qa-engineer's two ⚠️ partial rows in §2 (do not block this verdict alone)
+1. ~~Make `ChangeState`'s read of the prior state part of the same `BEGIN IMMEDIATE` transaction as `UpdateState`~~ — **DONE**, `e9ba82e` — fixes: F-23
+2. ~~Replace the two real person names newly introduced in `BACKLOG.md`/`proposal.md` with `Usuari A`/`Usuari B`~~ — **DONE**, `069a91c` — fixes: F-20 (security-engineer, §6)
+3. ~~Add `TestCSRF_PatchWithoutToken_Rejected`/`TestCSRF_DeleteWithoutToken_Rejected` for `/api/v1/projects/{id}`~~ — **DONE**, `e9ba82e` — fixes: F-21 (security-engineer, §6, minor)
+4. (Optional, non-blocking, still open) Add a CI-level `grep -r innerHTML app/web/` style static check to close the measurement half of NFR-02, and a poll-reflected-announcement E2E case for NFR-07 — owner: `fullstack-developer` — fixes: qa-engineer's two ⚠️ partial rows in §2 (do not block this verdict)
 
 ## 8. Sign-off
 
-> Filled in once `APPROVED`. Not applicable this round — verdict is
-> `CHANGES_REQUESTED` (see §1). Re-run `/audit NIU-5` after action items
-> 1–2 land; items 3–4 are non-blocking and may ship in the same or a
-> follow-up pass at the developer's discretion.
-
-- **Approver:** —
-- **Date:** —
-- **Next step:** `/code NIU-5` to address F-23 (and F-20 from `security-engineer`), then re-run `/audit NIU-5`
+- **Approver:** `code-reviewer` (re-audit)
+- **Date:** 2026-08-03
+- **Next step:** `/commit NIU-5`. Item 4 above (NFR-02 static check, NFR-07 remote-announce E2E) is non-blocking and may be picked up separately or in a follow-up item at the developer's discretion.
