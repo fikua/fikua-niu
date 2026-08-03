@@ -7,6 +7,8 @@ i el projecte s'adhereix a [Semantic Versioning](https://semver.org/lang/ca/).
 
 ## [Unreleased]
 
+## [0.1.0] - 2026-08-03
+
 ### Added
 
 - Brief mestre (`PLAN.md`) amb arquitectura, seguretat, desplegament i pla de proves.
@@ -108,4 +110,7 @@ i el projecte s'adhereix a [Semantic Versioning](https://semver.org/lang/ca/).
   per `security-engineer`) + 33 tests E2E Playwright (22 existents sense
   regressions + 11 nous — diferenciació visual, teclat, targeta accessible
   amb fallback, `aria-live`, viewport mòbil i auditoria axe-core aplicats
-  a l'espai d'idees).
+  a l'espai d'idees). CSP `img-src` ampliat de `'self'` a `'self' https:`
+  perquè les imatges de previsualització recuperades es puguin renderitzar
+  (`fetchsafe` ja garanteix que `image_url` només conté una URL `http(s)`
+  validada contra SSRF).
