@@ -357,12 +357,12 @@ updated: "2026-08-02"
   informats i un altre sense — assert que els valors es desen i es
   mostren sencers quan són presents, i que són `null` (sense mostrar
   cap camp) quan es deixen buits. · *covers:* AC-14, AC-15
-- [ ] **T-32** — Actualitzar `docs/overview.md` per esmentar l'espai de
+- [x] **T-32** — Actualitzar `docs/overview.md` per esmentar l'espai de
   compres grans / projectes de casa com a funcionalitat existent de
   Niu (cicle de vida de tres estats, autoria, pressupost i data
   objectiu opcionals), mantenint-lo com a font única de veritat del que
   fa l'app. · *covers:* AC-13
-- [ ] **T-33** — Executar `commands.test` (`cd app && go test ./...`),
+- [x] **T-33** — Executar `commands.test` (`cd app && go test ./...`),
   `commands.lint` (`gofmt -l`) i `commands.typecheck` (`cd app && go vet
   ./...`) del manifest de punta a punta; confirmar que tots els casos
   🟢 de NIU-5 (15 AC + 17 EC) estan verds sense regressions sobre la

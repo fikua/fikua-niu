@@ -34,6 +34,15 @@ llista.
 
 Els dos veuen la mateixa llista. Cada ítem mostra qui l'ha tocat.
 
+Un segon espai, separat de la llista de la compra: **compres grans i
+projectes de casa** (p. ex. un moble, un televisor nou, pintar una
+habitació). Cada element hi viu tot el seu recorregut amb un cicle de vida
+propi de tres estats — **idea** → **decidit** → **fet** — reversible en
+totes dues direccions en qualsevol moment. Cada element mostra qui l'ha
+afegit i qui l'ha actualitzat per últim cop, i admet opcionalment un
+pressupost (text lliure) i una data objectiu. Eliminar és l'única manera de
+treure un element de la llista — no hi ha cap estat "abandonat" diferenciat.
+
 ## Què no fa la v1
 
 Deliberadament fora d'abast:

@@ -4,7 +4,14 @@
 import { test, expect } from '@playwright/test';
 import { uniqueProjectName, addProject, cleanupProject } from './projects-helpers.js';
 
-async function tabUntilFocused(page, locator, maxPresses = 40) {
+// maxPresses is generous: the projects list is shared across the whole
+// Playwright run (single DB, no per-test isolation, same pattern as
+// NIU-1's keyboard-navigation.spec.js) and syncProjectsFromServer()'s
+// 10s poll can re-sort rows to server order (oldest first) mid-test,
+// pushing a newly-added row further from the focus start point than a
+// tight budget would tolerate. A large ceiling costs nothing when the
+// target is reached early (the loop returns as soon as it is).
+async function tabUntilFocused(page, locator, maxPresses = 200) {
   for (let i = 0; i < maxPresses; i++) {
     if (await locator.evaluate((el) => el === document.activeElement).catch(() => false)) {
       return true;
