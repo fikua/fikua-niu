@@ -115,7 +115,7 @@ updated: "2026-08-02"
 
 ### Foundations
 
-- [ ] **T-01** — Escriure la migració goose
+- [x] **T-01** — Escriure la migració goose
   `app/migrations/003_projects.sql` amb el DDL exacte de `design.md`
   §6.2: taula `projects` (`id`, `name`, `name_normalized`, `state` amb
   `CHECK (state IN ('idea','decidit','fet')) DEFAULT 'idea'`, `budget
@@ -125,7 +125,7 @@ updated: "2026-08-02"
   cap clàusula `WHERE` (ADR-02 — abast a través de tots els estats).
   Totes les consultes que la toquin usaran paràmetres vinculats, mai
   `fmt.Sprintf` cap a SQL. · *covers:* NFR-03 (base), EC-09 (base)
-- [ ] **T-02** — Definir el domini `internal/projects`: tipus `Project`
+- [x] **T-02** — Definir el domini `internal/projects`: tipus `Project`
   (camps `ID`, `Name`, `State`, `Budget *string`, `TargetDate *string`,
   `AddedBy`/`LastUpdatedBy items.User`, `CreatedAt`/`UpdatedAt`),
   interfícies `Repository` (`Create`, `Get`, `List`, `UpdateState`,
@@ -137,7 +137,7 @@ updated: "2026-08-02"
 
 ### Implementation
 
-- [ ] **T-03** — Implementar `projects.Service.Add(ctx, userID, rawName,
+- [x] **T-03** — Implementar `projects.Service.Add(ctx, userID, rawName,
   rawBudget, rawTargetDate)`: retallar i validar `name` (1–200 post-trim,
   mateixes regles de caràcters de control que `items`), normalitzar amb
   `items.NormalizeName` (ADR-02), comprovar `ExistsByNormalizedName`
@@ -145,7 +145,7 @@ updated: "2026-08-02"
   per l'índex únic, mateix patró que `ItemsRepository.Create`); si
   existeix **en qualsevol estat** retornar `ErrDuplicate{}` (EC-03). ·
   *covers:* AC-01 (base)
-- [ ] **T-04** — Estendre `projects.Service.Add` amb la validació de
+- [x] **T-04** — Estendre `projects.Service.Add` amb la validació de
   `budget` (opcional, 1–200 caràcters post-trim si present, mateix
   llindar que el nom — EC-16) i `target_date` (opcional, format ISO-8601
   `YYYY-MM-DD` vàlid si present, **sense** cap comprovació de "no
@@ -154,7 +154,7 @@ updated: "2026-08-02"
   `added_by=userID`, `last_updated_by=userID`, escriure event
   `project_added`. · *covers:* AC-01, AC-10, AC-14, AC-15, EC-01, EC-02,
   EC-07, EC-16, EC-17
-- [ ] **T-05** — Implementar `projects.Service.ChangeState(ctx, userID,
+- [x] **T-05** — Implementar `projects.Service.ChangeState(ctx, userID,
   id, newState)`: validar que `newState` sigui un dels tres valors
   coneguts (`idea`/`decidit`/`fet`) — sense màquina d'estats amb
   transicions prohibides, qualsevol dels tres és sempre un moviment
@@ -163,26 +163,26 @@ updated: "2026-08-02"
   d'NIU-1) i executa un sol `UPDATE projects SET state=?,
   last_updated_by=?, updated_at=CURRENT_TIMESTAMP WHERE id=?`. ·
   *covers:* AC-02, AC-03, AC-09, AC-07 (base)
-- [ ] **T-06** — Completar `ChangeState`: si `RowsAffected == 0` (`id`
+- [x] **T-06** — Completar `ChangeState`: si `RowsAffected == 0` (`id`
   no existeix, EC-12) retornar `ErrNotFound`; en èxit, `COMMIT` i
   escriure event `project_state_changed` amb `payload {"from": "...",
   "to": "..."}` (NFR-01). Confirmar que un element estancat setmanes a
   `decidit` no pateix cap canvi automàtic (EC-05 — comportament,
   no codi addicional). · *covers:* AC-05 (base concurrència), EC-05,
   EC-12, EC-13, NFR-01
-- [ ] **T-07** — Implementar `projects.Service.List(ctx)`: una sola
+- [x] **T-07** — Implementar `projects.Service.List(ctx)`: una sola
   consulta `SELECT` amb `JOIN` a `users` (per `added_by` i
   `last_updated_by`), sense N+1, mateix patró que
   `ItemsRepository.List`. · *covers:* AC-06 (base — llista consultada
   per `GET`/sondeig)
-- [ ] **T-08** — Implementar `projects.Service.Delete(ctx, userID, id)`:
+- [x] **T-08** — Implementar `projects.Service.Delete(ctx, userID, id)`:
   `DELETE FROM projects WHERE id = ?` idempotent (`existed bool`, mateix
   patró que `items.Delete`); escriure event `project_deleted` amb
   `payload {"project_id": id}` només quan la fila existia. Un projecte
   eliminat deixa de comptar per a `ExistsByNormalizedName` (EC-04). ·
   *covers:* AC-01 (base — EC-04 duplicat post-eliminació), EC-03 (base
   d'exclusió d'eliminats), EC-04
-- [ ] **T-09** — Estendre `internal/store` amb `ProjectsRepository`,
+- [x] **T-09** — Estendre `internal/store` amb `ProjectsRepository`,
   implementant `projects.Repository` i `projects.EventSink` (delegant
   `Record` a la mateixa taula `events` ja existent, cap columna ni tipus
   nou). Implementar `Create`, `Get`, `List`, `UpdateState`, `Delete`,
