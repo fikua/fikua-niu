@@ -49,3 +49,29 @@ i el projecte s'adhereix a [Semantic Versioning](https://semver.org/lang/ca/).
   inclou els 7 casos 🟢 NIU-4 del pla de proves S1b/S2a/S2b/S2c/S4/S5/S6) +
   19 tests E2E Playwright (18 de NIU-1 sense regressions + 1 de cicle
   complet login → ús → logout, AC-14).
+- **NIU-5 — Compres grans i projectes de casa:** nou espai, separat de la
+  llista de la compra, amb un cicle de vida de tres estats (`idea` →
+  `decidit` → `fet`, reversible en totes dues direccions) i pressupost/data
+  objectiu opcionals. Domini nou `internal/projects` (ADR-01), estructural-
+  ment paral·lel a `internal/items` — reutilitza `items.NormalizeName` per
+  a la normalització de duplicats (ADR-02), amb un abast més ampli: un
+  duplicat es rebutja **a través de tots els estats**, no només entre
+  caixes actives. Migració goose `003_projects.sql` (taula `projects`,
+  índex únic sobre `name_normalized`, `CHECK` de tres estats). Mateix patró
+  `BEGIN IMMEDIATE` que NIU-1 per als canvis d'estat concurrents (ADR-01
+  NIU-1, cap error 5xx, última escriptura guanya). Nous endpoints
+  `GET/POST /api/v1/projects` i `PATCH/DELETE /api/v1/projects/{id}`, dins
+  del mateix grup `/api/v1` protegit per `WithCurrentUser`/`RequireCSRF`
+  (cap superfície d'autenticació nova). Nova secció de navegació ("🏠
+  Projectes", `web/projects.html`) amb accent terracota (en lloc del verd
+  molsa de la llista de la compra, ADR-04), sense animació de transició
+  d'estat (ADR-03, NFR-08 no aplicable) — llista única amb selector de
+  tres opcions per canviar d'estat en qualsevol direcció, avatars d'autoria
+  i regió `aria-live` amb el format "{nom} ara està {estat}". `overview.md`
+  actualitzat com a font única de veritat (AC-13). Suite de tests: 112
+  tests Go en total (33 nous — 16 unitaris de validació/normalització a
+  `internal/projects`, 17 d'integració d'estat/concurrència/esdeveniments/
+  seguretat a `tests/integration/`) + 26 tests E2E Playwright (23 de
+  NIU-1/NIU-4 sense regressions + 3 nous — diferenciació visual, teclat/
+  aria-live/estat buit/mòbil, auditoria axe-core i XSS aplicats a l'espai
+  de projectes).
