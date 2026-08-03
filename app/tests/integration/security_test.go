@@ -210,3 +210,101 @@ func TestBidiOverrideRejectedEndToEnd(t *testing.T) {
 		t.Errorf("bidi payload was stored (%d item(s)) — Trojan Source reaches the other user", len(items))
 	}
 }
+
+// ---- NIU-5 T-26 — same security patterns applied to /api/v1/projects ----
+
+// EC-08/NFR-02: an XSS payload in the project name is stored literally —
+// the API layer never interprets it as HTML. Script-execution-in-a-real-
+// browser is asserted by the Playwright E2E suite (T-30); this test
+// covers the server-side half of the contract.
+func TestProjects_XSSPayload_StoredLiterally(t *testing.T) {
+	srv := newTestServer(t, seedUserAID)
+
+	payload := "<img src=x onerror=alert(1)>"
+	created := createProject(t, srv.Server, payload)
+	if created.Name != payload {
+		t.Fatalf("stored name = %q, want literal payload %q", created.Name, payload)
+	}
+
+	list := listProjects(t, srv.Server)
+	if len(list) != 1 || list[0].Name != payload {
+		t.Fatalf("GET /projects name = %+v, want literal payload preserved", list)
+	}
+}
+
+// EC-09/NFR-03: a SQL-injection-shaped name is stored literally, and the
+// projects table (and the rest of the schema) survives intact.
+func TestProjects_SQLInjectionPayload_StoredLiterally_TableSurvives(t *testing.T) {
+	srv := newTestServer(t, seedUserAID)
+
+	createProject(t, srv.Server, "Televisor")
+
+	payload := "'; DROP TABLE projects;--"
+	created := createProject(t, srv.Server, payload)
+	if created.Name != payload {
+		t.Fatalf("stored name = %q, want literal payload %q", created.Name, payload)
+	}
+
+	list := listProjects(t, srv.Server)
+	if len(list) != 2 {
+		t.Fatalf("projects table after injection attempt = %+v, want 2 rows (table intact)", list)
+	}
+
+	var one int
+	if err := srv.Store.DB.QueryRow("SELECT 1 FROM sqlite_master WHERE type='table' AND name='projects'").Scan(&one); err != nil {
+		t.Fatalf("projects table missing after injection attempt: %v", err)
+	}
+}
+
+// EC-10/NFR-04: no GET route under /api/v1/projects has a mutating
+// effect — GET never creates, changes state, or deletes.
+func TestProjects_NoMutationViaGET(t *testing.T) {
+	srv := newTestServer(t, seedUserAID)
+
+	createProject(t, srv.Server, "Rentadora")
+	before := listProjects(t, srv.Server)
+
+	res, err := http.Get(srv.URL + "/api/v1/projects")
+	if err != nil {
+		t.Fatalf("GET /projects: %v", err)
+	}
+	if res.StatusCode != http.StatusOK {
+		t.Fatalf("GET /projects status = %d, want 200", res.StatusCode)
+	}
+
+	after := listProjects(t, srv.Server)
+	if len(before) != len(after) {
+		t.Fatalf("GET /projects changed project count: before=%d after=%d", len(before), len(after))
+	}
+}
+
+// EC-11/NFR-05: a request without a valid session cookie against any
+// endpoint in this space is rejected as unauthenticated, using the exact
+// same mechanism as every other endpoint (auth.PasswordAuthenticator via
+// WithCurrentUser, no exception carved out for /projects).
+func TestProjects_Unauthenticated_Rejected(t *testing.T) {
+	srv := newAuthTestServer(t)
+
+	endpoints := []struct {
+		method string
+		path   string
+		body   any
+	}{
+		{http.MethodGet, "/api/v1/projects", nil},
+		{http.MethodPost, "/api/v1/projects", map[string]string{"name": "Sense sessió"}},
+		{http.MethodPatch, "/api/v1/projects/1", map[string]string{"state": "decidit"}},
+		{http.MethodDelete, "/api/v1/projects/1", nil},
+	}
+
+	for _, ep := range endpoints {
+		res := doJSONWithCookie(t, ep.method, srv.URL+ep.path, "", "", ep.body)
+		if res.StatusCode != http.StatusUnauthorized {
+			t.Errorf("%s %s without session cookie status = %d, want 401", ep.method, ep.path, res.StatusCode)
+		}
+		var body errorResponse
+		decodeJSON(t, res, &body)
+		if body.Error.Code != "unauthenticated" {
+			t.Errorf("%s %s error code = %q, want unauthenticated", ep.method, ep.path, body.Error.Code)
+		}
+	}
+}

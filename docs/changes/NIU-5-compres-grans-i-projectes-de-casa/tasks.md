@@ -281,20 +281,20 @@ updated: "2026-08-02"
   clarament diferents; complementar amb revisió visual puntual
   (`code-reviewer`/`ux-ui-designer`) documentada com a evidència. ·
   *covers:* AC-08
-- [ ] **T-22** — Afegir tests unitaris a `internal/projects` per a la
+- [x] **T-22** — Afegir tests unitaris a `internal/projects` per a la
   validació de nom, `budget` i `target_date`: frontera 200/201
   caràcters per al nom (EC-01/EC-02) i per al pressupost (EC-16),
   format vàlid/invàlid de `target_date`, i confirmació explícita que
   una data passada s'accepta sense error (EC-17). · *covers:* AC-10,
   EC-01, EC-02, EC-16, EC-17
-- [ ] **T-23** — Afegir tests unitaris/d'integració a `internal/projects`
+- [x] **T-23** — Afegir tests unitaris/d'integració a `internal/projects`
   per a la normalització de duplicats (ADR-02): reutilització de
   `items.NormalizeName` confirmada per trim+minúscules+NFC/NFD, i que
   un duplicat es rebutja **independentment de l'estat** de l'element
   existent (`idea`, `decidit` o `fet` — EC-03), amb les mateixes
   combinacions retallat+majúscules/minúscules ja provades a NIU-1. ·
   *covers:* AC-01, EC-03
-- [ ] **T-24** — Afegir tests d'integració per a AC-02/AC-03/AC-09 i
+- [x] **T-24** — Afegir tests d'integració per a AC-02/AC-03/AC-09 i
   EC-12/EC-13 (`tests/integration/projects_test.go`, mateix patró
   `newTestServer`/`doJSON` ja establert): `PATCH` en les tres direccions
   possibles (`idea`→`decidit`, `decidit`→`fet`, i reversions
@@ -303,13 +303,13 @@ updated: "2026-08-02"
   not_found` sense afectar altres elements (EC-12); doble `DELETE`
   idempotent sense 5xx (EC-13). · *covers:* AC-02, AC-03, AC-04, AC-09,
   EC-12, EC-13
-- [ ] **T-25** — Afegir tests d'integració per a AC-05 i EC-04
+- [x] **T-25** — Afegir tests d'integració per a AC-05 i EC-04
   (`projects_test.go`): `POST` → `GET` (persistència, AC-01);
   `DELETE` elimina l'element de la llista i no reapareix en un `GET`
   posterior; crear→eliminar→recrear el mateix nom s'accepta com a
   element nou (la comprovació de duplicat només mira elements
   actius). · *covers:* AC-05, EC-04
-- [ ] **T-26** — Afegir tests d'integració de seguretat a
+- [x] **T-26** — Afegir tests d'integració de seguretat a
   `projects_test.go`, reutilitzant exactament els mateixos patrons de
   test ja escrits per NIU-1/NIU-4 (`security_test.go`,
   `sql_static_test.go`) aplicats a les noves rutes: `POST` amb nom
@@ -322,20 +322,20 @@ updated: "2026-08-02"
   petició sense cookie de sessió vàlida contra qualsevol endpoint
   d'aquest espai rebutjada com a no autenticada (EC-11/NFR-05). ·
   *covers:* EC-08, EC-09, EC-10, EC-11, NFR-02, NFR-03, NFR-04, NFR-05
-- [ ] **T-27** — Afegir test d'integració per a NFR-01
+- [x] **T-27** — Afegir test d'integració per a NFR-01
   (`projects_test.go`): per cada transició d'AC-02/AC-03/AC-09, assert
   d'una fila `events` amb `kind="project_state_changed"` i el `payload`
   `{"from", "to"}` correcte, per inspecció directa post-transacció; i
   que dos clients simulats convergeixen al mateix estat via `GET`
   posterior (AC-06). · *covers:* AC-06, NFR-01
-- [ ] **T-28** — Afegir test d'integració de concurrència per a AC-07
+- [x] **T-28** — Afegir test d'integració de concurrència per a AC-07
   (`projects_test.go`, mateix patró que `concurrency_test.go` d'NIU-1):
   dues `PATCH` gairebé simultànies sobre el mateix element (potser a
   estats diferents) via goroutines, assert que cap falla amb 5xx i que,
   després d'un `GET` posterior, ambdós clients recuperarien el mateix
   estat final (l'última escriptura confirmada a SQLite). · *covers:*
   AC-07
-- [ ] **T-29** — Afegir test unitari/integració per a EC-05 i EC-06
+- [x] **T-29** — Afegir test unitari/integració per a EC-05 i EC-06
   (`internal/projects` i/o `projects_test.go`): un element sembrat amb
   `updated_at` simulat de setmanes/mesos enrere continua visible amb el
   seu estat real sense cap caducitat, arxivament ni ocultació
@@ -352,7 +352,7 @@ updated: "2026-08-02"
   sense error (EC-14); viewport mòbil 375×667 manté totes les
   funcionalitats (EC-15). · *covers:* AC-11, AC-12, EC-14, EC-15,
   NFR-06, NFR-07
-- [ ] **T-31** — Afegir test d'integració per a AC-14/AC-15
+- [x] **T-31** — Afegir test d'integració per a AC-14/AC-15
   (`projects_test.go`): crear un projecte amb `budget`/`target_date`
   informats i un altre sense — assert que els valors es desen i es
   mostren sencers quan són presents, i que són `null` (sense mostrar
