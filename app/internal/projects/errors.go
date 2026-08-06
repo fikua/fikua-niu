@@ -43,4 +43,9 @@ const (
 	ValidationBudgetTooLong = "budget_too_long"
 	ValidationInvalidState  = "invalid_state"
 	ValidationInvalidDate   = "invalid_target_date"
+	// ValidationURLInvalid is a defensive fallback for validateProjectURL
+	// (NIU-11) — ideas.ValidateURL only ever returns *ideas.ErrValidation
+	// today, so this code is not expected to surface in practice, but
+	// validateProjectURL must not panic if that ever changes.
+	ValidationURLInvalid = "invalid_url"
 )

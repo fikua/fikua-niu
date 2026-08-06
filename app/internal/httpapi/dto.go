@@ -61,12 +61,25 @@ func toItemDTOs(list []items.Item) []itemDTO {
 // is always non-nil, unlike itemDTO's moved_by (design.md §6.1 note: it
 // is assigned equal to added_by at creation, so the frontend never needs
 // the "has it ever moved" conditional that items.MovedBy requires).
+//
+// NIU-11: url/title/image_url/preview_status are all null for a project
+// created without a url (decision 2, tasks.md context). description is
+// deliberately NOT exposed here (tasks.md T-05) — it is persisted
+// (internal/projects, internal/store) because it comes for free from the
+// same Preview the thumbnail/title do and avoids a second migration if
+// it is ever shown, but the UI never renders it (decision 1: thumbnail +
+// clickable name only, no description) — the HTTP contract must not
+// publish a field nobody consumes.
 type projectDTO struct {
 	ID            int64     `json:"id"`
 	Name          string    `json:"name"`
 	State         string    `json:"state"`
 	Budget        *string   `json:"budget"`
 	TargetDate    *string   `json:"target_date"`
+	URL           *string   `json:"url"`
+	Title         *string   `json:"title"`
+	ImageURL      *string   `json:"image_url"`
+	PreviewStatus *string   `json:"preview_status"`
 	AddedBy       *userDTO  `json:"added_by"`
 	LastUpdatedBy *userDTO  `json:"last_updated_by"`
 	CreatedAt     time.Time `json:"created_at"`
@@ -80,6 +93,10 @@ func toProjectDTO(p projects.Project) projectDTO {
 		State:         string(p.State),
 		Budget:        p.Budget,
 		TargetDate:    p.TargetDate,
+		URL:           p.URL,
+		Title:         p.Title,
+		ImageURL:      p.ImageURL,
+		PreviewStatus: p.PreviewStatus,
 		AddedBy:       toUserDTO(p.AddedBy),
 		LastUpdatedBy: toUserDTO(p.LastUpdatedBy),
 		CreatedAt:     p.CreatedAt,

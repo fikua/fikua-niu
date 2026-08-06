@@ -9,6 +9,13 @@
 // design.md §7/ADR-03: state change is a text/badge update, no FLIP, no
 // movement animation — prefers-reduced-motion needs no special handling
 // here because there is no motion to reduce (NFR-08 not applicable).
+//
+// NIU-11: an optional ~48px thumbnail + clickable name, replicating the
+// XSS discipline already proved in ideas-render.js's <img>/<a> handling
+// — image_url via setAttribute('src', ...), never interpolation, and the
+// only src/href in this file carrying user-controlled data. A project
+// without a url renders exactly as it did before this feature (decision
+// 2 in tasks.md) — no placeholder, no visual gap.
 
 export { showToast, dismissToast } from './toast.js';
 
@@ -110,6 +117,47 @@ function renderStateSelector(project, handlers) {
   return wrap;
 }
 
+// renderProjectThumbnail builds the ~48px thumbnail (NIU-11, decision 1:
+// in the row itself, never an expandable card) when the project has an
+// image_url — omitted entirely otherwise, so a project without a url
+// renders exactly as it did before this feature (decision 2, no visual
+// hole/placeholder). setAttribute('src', ...) with the backend-validated
+// image_url, never string interpolation into innerHTML (NFR-02). alt=""
+// because the thumbnail is decorative — the project's own name already
+// identifies the row, so a title alt would just duplicate what a screen
+// reader already announces.
+function renderProjectThumbnail(project) {
+  if (!project.image_url) return null;
+  const img = document.createElement('img');
+  img.className = 'project-thumb';
+  img.setAttribute('src', project.image_url);
+  img.setAttribute('alt', '');
+  img.loading = 'lazy';
+  return img;
+}
+
+// renderProjectName builds the clickable name (an <a>, rel="noopener
+// noreferrer" so the destination page never gets a window.opener handle
+// back to this tab) when the project has a url, or a plain span
+// otherwise — a project without a url looks exactly like it did before
+// NIU-11 (decision 2). textContent for the name in both cases, never
+// innerHTML (EC-08/NFR-02).
+function renderProjectName(project) {
+  if (project.url) {
+    const link = document.createElement('a');
+    link.className = 'project-name';
+    link.setAttribute('href', project.url);
+    link.target = '_blank';
+    link.rel = 'noopener noreferrer';
+    link.textContent = project.name;
+    return link;
+  }
+  const name = document.createElement('span');
+  name.className = 'project-name';
+  name.textContent = project.name; // EC-08/NFR-02: textContent only, never innerHTML
+  return name;
+}
+
 export function renderProjectRow(project, handlers) {
   const li = document.createElement('li');
   li.style.listStyle = 'none';
@@ -118,10 +166,10 @@ export function renderProjectRow(project, handlers) {
   row.className = 'project-row';
   row.dataset.id = String(project.id);
 
-  const name = document.createElement('span');
-  name.className = 'project-name';
-  name.textContent = project.name; // EC-08/NFR-02: textContent only, never innerHTML
-  row.appendChild(name);
+  const thumb = renderProjectThumbnail(project);
+  if (thumb) row.appendChild(thumb);
+
+  row.appendChild(renderProjectName(project));
 
   row.appendChild(renderStateSelector(project, handlers));
 

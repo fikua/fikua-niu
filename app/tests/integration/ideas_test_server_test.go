@@ -36,7 +36,6 @@ import (
 	"niu/internal/httpapi"
 	"niu/internal/ideas"
 	"niu/internal/items"
-	"niu/internal/projects"
 	"niu/internal/store"
 )
 
@@ -115,8 +114,7 @@ func newIdeasHTTPTestServer(t *testing.T, userID int64) *testServer {
 
 	repo := store.NewItemsRepository(st.DB)
 	svc := items.NewService(repo, repo, repo)
-	projectsRepo := store.NewProjectsRepository(st.DB)
-	projectsSvc := projects.NewService(projectsRepo, projectsRepo)
+	projectsSvc := newProjectsService(t, st)
 
 	ideasRepo := store.NewIdeasRepository(st.DB)
 	pool := ideas.NewWorkerPool(context.Background())

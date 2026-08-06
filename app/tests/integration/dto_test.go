@@ -36,12 +36,21 @@ type errorResponse struct {
 // projectDTO mirrors the wire shape of httpapi.projectDTO (design.md
 // §6.1) — duplicated here because the field is unexported in
 // internal/httpapi; integration tests only care about the JSON contract.
+// NIU-11: url/title/image_url/preview_status are the exposed preview
+// fields; description is deliberately absent — see
+// TestProjects_Add_WithURL_DescriptionNeverExposed, which asserts its
+// absence from the raw JSON body directly rather than relying on this
+// struct silently dropping an unknown field.
 type projectDTO struct {
 	ID            int64     `json:"id"`
 	Name          string    `json:"name"`
 	State         string    `json:"state"`
 	Budget        *string   `json:"budget"`
 	TargetDate    *string   `json:"target_date"`
+	URL           *string   `json:"url"`
+	Title         *string   `json:"title"`
+	ImageURL      *string   `json:"image_url"`
+	PreviewStatus *string   `json:"preview_status"`
 	AddedBy       *userDTO  `json:"added_by"`
 	LastUpdatedBy *userDTO  `json:"last_updated_by"`
 	CreatedAt     time.Time `json:"created_at"`

@@ -2,10 +2,14 @@ package projects
 
 import (
 	"context"
+	"errors"
+	"log/slog"
 	"strings"
 	"time"
 	"unicode"
 	"unicode/utf8"
+
+	"niu/internal/ideas"
 )
 
 const maxNameLength = 200
@@ -33,16 +37,26 @@ func hasControlChars(s string) bool {
 }
 
 // Service implements the "compres grans i projectes de casa" business
-// rules. It depends only on the Repository and EventSink interfaces —
-// never on database/sql or net/http (design.md §4).
+// rules. It depends only on the Repository and EventSink interfaces, plus
+// a PreviewFetcher function value (NIU-11) — never on database/sql or
+// net/http directly (design.md §4). The only network access ever
+// triggered by this package flows through fetch, which callers wire to
+// fetchsafe.FetchPreview — same discipline as internal/ideas.Service.
 type Service struct {
-	repo Repository
-	sink EventSink
+	repo  Repository
+	sink  EventSink
+	fetch PreviewFetcher
+	pool  *ideas.WorkerPool
 }
 
-// NewService constructs a Service.
-func NewService(repo Repository, sink EventSink) *Service {
-	return &Service{repo: repo, sink: sink}
+// NewService constructs a Service. pool must already be started (see
+// ideas.NewWorkerPool) — Service.Add submits scrape jobs to it, never
+// spawns an unbounded goroutine per request (mirrors ideas.NewService).
+// tasks.md T-06 wires this to the SAME pool internal/ideas already uses
+// (cmd/niu/main.go's previewPool) rather than a second one — see that
+// file for the rationale.
+func NewService(repo Repository, sink EventSink, fetch PreviewFetcher, pool *ideas.WorkerPool) *Service {
+	return &Service{repo: repo, sink: sink, fetch: fetch, pool: pool}
 }
 
 // validateName trims and validates a project name, applying the same
@@ -129,10 +143,44 @@ func validateTargetDate(rawTargetDate *string) (*string, error) {
 	return &trimmed, nil
 }
 
+// validateProjectURL validates the optional url field: nil/empty is
+// allowed (decision 2, tasks.md context — a project without a url is not
+// an error, unlike ideas.Service.Add where the url is mandatory).
+// Non-empty input reuses ideas.ValidateURL's exact scheme check
+// (tasks.md T-04: "reutilitzar la validació d'esquema — no duplicar-la a
+// mà") rather than hand-duplicating the http(s)-only rule, wrapping the
+// result into this package's own ErrValidation so httpapi/frontend keep
+// a single error-code namespace for projects.
+func validateProjectURL(rawURL *string) (*string, error) {
+	if rawURL == nil {
+		return nil, nil
+	}
+
+	trimmed := strings.TrimSpace(*rawURL)
+	if trimmed == "" {
+		return nil, nil
+	}
+
+	validURL, err := ideas.ValidateURL(trimmed)
+	if err != nil {
+		var val ideas.ErrValidation
+		if errors.As(err, &val) {
+			return nil, ErrValidation{Code: val.Code, Message: val.Message}
+		}
+		return nil, ErrValidation{Code: ValidationURLInvalid, Message: "Aquest enllaç no és vàlid."}
+	}
+
+	return &validURL, nil
+}
+
 // Add validates and creates a new project in state "idea" (design.md §5
 // Flux 1; covers AC-01, AC-10, AC-14, AC-15, EC-01, EC-02, EC-03, EC-07,
-// EC-16, EC-17).
-func (s *Service) Add(ctx context.Context, userID int64, rawName string, rawBudget, rawTargetDate *string) (Project, error) {
+// EC-16, EC-17). NIU-11: when a url is given, it also enqueues the
+// og:image/title/description scrape onto the shared preview worker pool
+// (tasks.md T-04/T-06) — the 201-equivalent response never waits for it,
+// same ADR-03 rule already proved by internal/ideas. A project with no
+// url enqueues nothing and is created with preview_status left NULL.
+func (s *Service) Add(ctx context.Context, userID int64, rawName string, rawBudget, rawTargetDate, rawURL *string) (Project, error) {
 	name, err := validateName(rawName)
 	if err != nil {
 		return Project{}, err
@@ -148,13 +196,18 @@ func (s *Service) Add(ctx context.Context, userID int64, rawName string, rawBudg
 		return Project{}, err
 	}
 
+	projectURL, err := validateProjectURL(rawURL)
+	if err != nil {
+		return Project{}, err
+	}
+
 	nameNormalized := NormalizeName(name)
 
 	// Duplicate check + INSERT happen inside the same transaction at the
 	// store layer (ADR-02), across ALL states (EC-03) — Create is
 	// responsible for that atomicity and for surfacing ErrDuplicate when
 	// the DB-level unique index rejects the insert.
-	project, err := s.repo.Create(ctx, userID, name, nameNormalized, budget, targetDate)
+	project, err := s.repo.Create(ctx, userID, name, nameNormalized, budget, targetDate, projectURL)
 	if err != nil {
 		return Project{}, err
 	}
@@ -164,7 +217,64 @@ func (s *Service) Add(ctx context.Context, userID int64, rawName string, rawBudg
 		"name":       project.Name,
 	})
 
+	if projectURL != nil {
+		s.pool.Submit(project.ID, *projectURL, s.resolvePreview)
+	}
+
 	return project, nil
+}
+
+// resolvePreview is the work a pool worker performs for one project's
+// preview: call fetchsafe.FetchPreview (via the injected fetch function,
+// with the worker pool's own background context — never the original
+// request's context, which is already gone by the time this runs), then
+// persist the outcome via UpdatePreview and record
+// project_preview_resolved. Verbatim replication of
+// ideas.Service.resolvePreview's rules (tasks.md T-04), including the
+// "partial with zero recovered fields -> failed" rule: a partial result
+// carrying literally nothing recovered is indistinguishable from a full
+// fallback to the user, so it renders as failed rather than an empty
+// "complete" state.
+func (s *Service) resolvePreview(ctx context.Context, projectID int64, rawURL string) {
+	preview, err := s.fetch(ctx, rawURL)
+
+	var title, imageURL, description *string
+	status := PreviewFailed
+
+	if err == nil {
+		status = PreviewReady
+		if preview.Partial {
+			status = PreviewPartial
+		}
+		if preview.Title != "" {
+			title = &preview.Title
+		}
+		if preview.ImageURL != "" {
+			imageURL = &preview.ImageURL
+		}
+		if preview.Description != "" {
+			description = &preview.Description
+		}
+		if title == nil && imageURL == nil && description == nil {
+			status = PreviewFailed
+		}
+	} else {
+		slog.Debug("fetchsafe: project preview resolution failed", "project_id", projectID, "url", rawURL, "error", err)
+	}
+
+	if updateErr := s.repo.UpdatePreview(ctx, projectID, title, imageURL, description, status); updateErr != nil {
+		// The project may have been deleted while the scrape was in flight
+		// — UpdatePreview affecting zero rows is not surfaced as an error by
+		// the repository, so any error reaching here is a genuine
+		// unexpected failure worth logging.
+		slog.Error("projects: failed to persist preview resolution", "project_id", projectID, "error", updateErr)
+		return
+	}
+
+	_ = s.sink.Record(ctx, 0, "project_preview_resolved", map[string]any{
+		"project_id": projectID,
+		"status":     status,
+	})
 }
 
 // knownStates enumerates the three valid values — any of the three is

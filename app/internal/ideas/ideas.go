@@ -5,6 +5,12 @@
 // — no shared model, no NormalizeName reuse (EC-06, no deduplication in
 // this space).
 //
+// The dependency is one-way, and only in the other direction: since
+// NIU-11, internal/projects imports this package for WorkerPool and
+// ValidateURL, reusing the preview machinery proven here rather than
+// duplicating it. This package still imports neither internal/projects
+// nor internal/items — nothing here knows those spaces exist.
+//
 // It deliberately imports neither net/http nor database/sql (design.md
 // §4) — internal/store implements the interfaces declared here,
 // internal/httpapi consumes ideas.Service only. The only network access

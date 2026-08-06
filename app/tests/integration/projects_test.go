@@ -492,3 +492,125 @@ func TestProjects_Add_BudgetAndTargetDateOmittedAreNull(t *testing.T) {
 		t.Fatalf("created.TargetDate = %+v, want nil when omitted (AC-15)", created.TargetDate)
 	}
 }
+
+// ---- T-12 (NIU-11): POST /api/v1/projects with url ----
+
+// waitForProjectPreviewStatus polls GET /api/v1/projects until id reaches
+// a non-nil, non-pending preview_status or the deadline passes — the
+// worker pool resolves asynchronously (same ADR-03 rule reused from
+// NIU-6), so tests cannot assert on the outcome synchronously after POST
+// returns.
+func waitForProjectPreviewStatus(t *testing.T, srv *httptest.Server, id int64, timeout time.Duration) projectDTO {
+	t.Helper()
+	deadline := time.Now().Add(timeout)
+	for time.Now().Before(deadline) {
+		for _, p := range listProjects(t, srv) {
+			if p.ID == id && p.PreviewStatus != nil && *p.PreviewStatus != "pending" {
+				return p
+			}
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+	t.Fatalf("project %d still pending after %s", id, timeout)
+	return projectDTO{}
+}
+
+// TestProjects_Add_WithURL_Returns201WithoutWaitingForScrape covers
+// tasks.md T-12's first half: POST with a url returns 201 immediately
+// with preview_status="pending" (never waiting for the scrape, mirrors
+// ideas' ADR-03), and the scrape eventually resolves to "ready".
+func TestProjects_Add_WithURL_Returns201WithoutWaitingForScrape(t *testing.T) {
+	mock := newMockPreviewServer(t)
+	mock.SetOpenGraph("Televisor 4K fantàstic", mock.URL+"/img.jpg", "La millor oferta de la ciutat.")
+
+	srv := newProjectsHTTPTestServer(t, seedUserAID)
+
+	res := doJSON(t, http.MethodPost, srv.Server.URL+"/api/v1/projects", map[string]any{
+		"name": "Televisor 4K amb enllaç", "url": mock.URL,
+	})
+	if res.StatusCode != http.StatusCreated {
+		var errBody errorResponse
+		decodeJSON(t, res, &errBody)
+		t.Fatalf("POST /projects with url status = %d, error = %+v", res.StatusCode, errBody)
+	}
+	var withURL projectDTO
+	decodeJSON(t, res, &withURL)
+
+	if withURL.URL == nil || *withURL.URL != mock.URL {
+		t.Fatalf("created.URL = %v, want %q", withURL.URL, mock.URL)
+	}
+	if withURL.PreviewStatus == nil || *withURL.PreviewStatus != "pending" {
+		t.Fatalf("POST response preview_status = %v, want pending (201 never waits for the scrape)", withURL.PreviewStatus)
+	}
+
+	resolved := waitForProjectPreviewStatus(t, srv.Server, withURL.ID, 2*time.Second)
+	if *resolved.PreviewStatus != "ready" {
+		t.Fatalf("resolved preview_status = %q, want ready", *resolved.PreviewStatus)
+	}
+	if resolved.Title == nil || *resolved.Title != "Televisor 4K fantàstic" {
+		t.Errorf("Title = %v", resolved.Title)
+	}
+	if resolved.ImageURL == nil || *resolved.ImageURL != mock.URL+"/img.jpg" {
+		t.Errorf("ImageURL = %v", resolved.ImageURL)
+	}
+}
+
+// TestProjects_Add_WithURL_DescriptionNeverExposed covers tasks.md T-12's
+// second half (T-05's contract): description is persisted (it comes free
+// from the same Preview as title/image_url) but the JSON response must
+// never contain the key at all — checked against the raw response bytes,
+// not just a struct field that would silently ignore an unknown key.
+func TestProjects_Add_WithURL_DescriptionNeverExposed(t *testing.T) {
+	mock := newMockPreviewServer(t)
+	mock.SetOpenGraph("Sofà de disseny", mock.URL+"/sofa.jpg", "Descripció detallada del sofà.")
+
+	srv := newProjectsHTTPTestServer(t, seedUserAID)
+
+	res := doJSON(t, http.MethodPost, srv.Server.URL+"/api/v1/projects", map[string]any{
+		"name": "Sofà nou", "url": mock.URL,
+	})
+	if res.StatusCode != http.StatusCreated {
+		t.Fatalf("POST /projects with url status = %d", res.StatusCode)
+	}
+	var created projectDTO
+	body := readAllBytes(t, res)
+	if err := json.Unmarshal(body, &created); err != nil {
+		t.Fatalf("unmarshal created project: %v", err)
+	}
+	if strings.Contains(string(body), `"description"`) {
+		t.Fatalf("POST /projects response contains a \"description\" key, want it entirely absent: %s", body)
+	}
+
+	resolved := waitForProjectPreviewStatus(t, srv.Server, created.ID, 2*time.Second)
+	if *resolved.PreviewStatus != "ready" {
+		t.Fatalf("resolved preview_status = %q, want ready", *resolved.PreviewStatus)
+	}
+
+	getRes, err := http.Get(srv.Server.URL + "/api/v1/projects")
+	if err != nil {
+		t.Fatalf("GET /projects: %v", err)
+	}
+	getBody := readAllBytes(t, getRes)
+	if strings.Contains(string(getBody), `"description"`) {
+		t.Fatalf("GET /projects response contains a \"description\" key, want it entirely absent: %s", getBody)
+	}
+}
+
+// TestProjects_Add_WithoutURL_PreviewFieldsAllNull covers the "sense URL"
+// half of decision 2: a project created without a url exposes url/title/
+// image_url/preview_status all as null, exactly like before this feature.
+func TestProjects_Add_WithoutURL_PreviewFieldsAllNull(t *testing.T) {
+	srv := newProjectsHTTPTestServer(t, seedUserAID)
+
+	created := createProject(t, srv.Server, "Prestatgeria sense enllaç")
+
+	if created.URL != nil {
+		t.Fatalf("created.URL = %v, want nil", created.URL)
+	}
+	if created.PreviewStatus != nil {
+		t.Fatalf("created.PreviewStatus = %v, want nil (never pending — no preview to resolve)", created.PreviewStatus)
+	}
+	if created.Title != nil || created.ImageURL != nil {
+		t.Fatalf("created preview fields = %+v, want all nil", created)
+	}
+}

@@ -28,8 +28,8 @@ export function getProjectsList() {
   return projectsList;
 }
 
-export async function addProjectOptimistic(rawName, rawBudget, rawTargetDate) {
-  const created = await api.addProject(rawName, rawBudget, rawTargetDate);
+export async function addProjectOptimistic(rawName, rawBudget, rawTargetDate, rawURL) {
+  const created = await api.addProject(rawName, rawBudget, rawTargetDate, rawURL);
   projectsList.unshift(created);
   doRender();
   return created;

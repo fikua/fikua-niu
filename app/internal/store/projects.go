@@ -28,7 +28,14 @@ func NewProjectsRepository(db *sql.DB) *ProjectsRepository {
 // DB-level unique index on name_normalized is the final authority — a
 // race between two concurrent creates with the same name is resolved by
 // the index, not just by the pre-check.
-func (r *ProjectsRepository) Create(ctx context.Context, userID int64, name, nameNormalized string, budget, targetDate *string) (projects.Project, error) {
+//
+// url is optional (NIU-11): when non-nil, preview_status is set to
+// 'pending' at INSERT time — mirroring IdeasRepository.Create, every row
+// with a url is born pending. When nil, preview_status stays NULL (not
+// 'pending' — migration 005 makes the column NULL-able precisely so a
+// project without a url never shows a preview spinner that will never
+// resolve).
+func (r *ProjectsRepository) Create(ctx context.Context, userID int64, name, nameNormalized string, budget, targetDate, url *string) (projects.Project, error) {
 	tx, err := r.db.BeginTx(ctx, nil)
 	if err != nil {
 		return projects.Project{}, fmt.Errorf("store: begin create project tx: %w", err)
@@ -47,10 +54,15 @@ func (r *ProjectsRepository) Create(ctx context.Context, userID int64, name, nam
 		return projects.Project{}, fmt.Errorf("store: check duplicate project: %w", err)
 	}
 
+	var previewStatus sql.NullString
+	if url != nil {
+		previewStatus = sql.NullString{String: projects.PreviewPending, Valid: true}
+	}
+
 	res, err := tx.ExecContext(ctx,
-		`INSERT INTO projects (name, name_normalized, state, budget, target_date, added_by, last_updated_by)
-		 VALUES (?, ?, 'idea', ?, ?, ?, ?)`,
-		name, nameNormalized, nullableString(budget), nullableString(targetDate), userID, userID,
+		`INSERT INTO projects (name, name_normalized, state, budget, target_date, url, preview_status, added_by, last_updated_by)
+		 VALUES (?, ?, 'idea', ?, ?, ?, ?, ?, ?)`,
+		name, nameNormalized, nullableString(budget), nullableString(targetDate), nullableString(url), previewStatus, userID, userID,
 	)
 	if err != nil {
 		// A concurrent insert may have won the race against our pre-check;
@@ -82,6 +94,7 @@ func nullableString(s *string) sql.NullString {
 
 const projectSelectColumns = `
 	p.id, p.name, p.state, p.budget, p.target_date,
+	p.url, p.title, p.image_url, p.description, p.preview_status,
 	p.added_by, au.name, au.display_name, au.avatar_emoji,
 	p.last_updated_by, lu.name, lu.display_name, lu.avatar_emoji,
 	p.created_at, p.updated_at
@@ -95,18 +108,20 @@ const projectSelectFrom = `
 
 func scanProject(scan func(dest ...any) error) (projects.Project, error) {
 	var (
-		p                                         projects.Project
-		state                                     string
-		budget, targetDate                        sql.NullString
-		addedByID                                 sql.NullInt64
-		addedByName, addedByDisplay, addedByEmoji sql.NullString
-		luByID                                    sql.NullInt64
-		luByName, luByDisplay, luByEmoji          sql.NullString
-		createdAt, updatedAt                      time.Time
+		p                                              projects.Project
+		state                                          string
+		budget, targetDate                             sql.NullString
+		url, title, imageURL, description, previewStat sql.NullString
+		addedByID                                      sql.NullInt64
+		addedByName, addedByDisplay, addedByEmoji      sql.NullString
+		luByID                                         sql.NullInt64
+		luByName, luByDisplay, luByEmoji               sql.NullString
+		createdAt, updatedAt                           time.Time
 	)
 
 	if err := scan(
 		&p.ID, &p.Name, &state, &budget, &targetDate,
+		&url, &title, &imageURL, &description, &previewStat,
 		&addedByID, &addedByName, &addedByDisplay, &addedByEmoji,
 		&luByID, &luByName, &luByDisplay, &luByEmoji,
 		&createdAt, &updatedAt,
@@ -125,6 +140,26 @@ func scanProject(scan func(dest ...any) error) (projects.Project, error) {
 	if targetDate.Valid {
 		v := targetDate.String
 		p.TargetDate = &v
+	}
+	if url.Valid {
+		v := url.String
+		p.URL = &v
+	}
+	if title.Valid {
+		v := title.String
+		p.Title = &v
+	}
+	if imageURL.Valid {
+		v := imageURL.String
+		p.ImageURL = &v
+	}
+	if description.Valid {
+		v := description.String
+		p.Description = &v
+	}
+	if previewStat.Valid {
+		v := previewStat.String
+		p.PreviewStatus = &v
 	}
 
 	if addedByID.Valid {
@@ -294,6 +329,24 @@ func (r *ProjectsRepository) ExistsByNormalizedName(ctx context.Context, nameNor
 		return false, fmt.Errorf("store: exists by normalized name: %w", err)
 	}
 	return true, nil
+}
+
+// UpdatePreview is the ONLY UPDATE allowed for the preview fields (NIU-11
+// — mirrors IdeasRepository.UpdatePreview) — it never touches
+// id/name/state/budget/target_date/url. If id no longer exists (deleted
+// while the scrape was in flight), this affects zero rows and returns no
+// error — the worker pool treats that as a normal, silent no-op.
+func (r *ProjectsRepository) UpdatePreview(ctx context.Context, id int64, title, imageURL, description *string, status string) error {
+	_, err := r.db.ExecContext(ctx,
+		`UPDATE projects
+		 SET title = ?, image_url = ?, description = ?, preview_status = ?
+		 WHERE id = ?`,
+		nullableString(title), nullableString(imageURL), nullableString(description), status, id,
+	)
+	if err != nil {
+		return fmt.Errorf("store: update project preview: %w", err)
+	}
+	return nil
 }
 
 // Record writes one event to the append-only events table (implements

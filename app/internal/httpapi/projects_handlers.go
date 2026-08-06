@@ -16,6 +16,7 @@ type addProjectRequest struct {
 	Name       string  `json:"name"`
 	Budget     *string `json:"budget"`
 	TargetDate *string `json:"target_date"`
+	URL        *string `json:"url"`
 }
 
 // handleListProjects is GET /api/v1/projects — read-only, never mutates
@@ -39,7 +40,7 @@ func (s *Server) handleCreateProject(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	project, err := s.projects.Add(r.Context(), user.ID, req.Name, req.Budget, req.TargetDate)
+	project, err := s.projects.Add(r.Context(), user.ID, req.Name, req.Budget, req.TargetDate, req.URL)
 	if err != nil {
 		var dup projects.ErrDuplicate
 		var val projects.ErrValidation

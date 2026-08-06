@@ -65,6 +65,7 @@ function wireAddForm() {
   const nameInput = document.getElementById('add-project-name');
   const budgetInput = document.getElementById('add-project-budget');
   const targetDateInput = document.getElementById('add-project-target-date');
+  const urlInput = document.getElementById('add-project-url');
   const addBtn = document.getElementById('add-project-btn');
   const addGroup = document.getElementById('add-project-group');
   const addError = document.getElementById('add-project-error');
@@ -92,11 +93,12 @@ function wireAddForm() {
     nameInput.disabled = true;
     addBtn.disabled = true;
     try {
-      await addProjectOptimistic(raw, budgetInput.value, targetDateInput.value);
+      await addProjectOptimistic(raw, budgetInput.value, targetDateInput.value, urlInput.value);
       clearError();
       nameInput.value = '';
       budgetInput.value = '';
       targetDateInput.value = '';
+      urlInput.value = '';
     } catch (err) {
       const message = err && err.message ? err.message : t('errorGeneric');
       showError(message);

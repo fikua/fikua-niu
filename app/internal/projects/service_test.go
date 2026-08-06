@@ -1,15 +1,34 @@
 package projects
 
 import (
+	"context"
 	"strings"
 	"testing"
 
 	"golang.org/x/text/unicode/norm"
+
+	"niu/internal/ideas"
 )
 
 // T-22 — name/budget/target_date validation boundaries (EC-01, EC-02,
 // EC-16, EC-17). T-23 — normalization/duplicate rejection across states
 // (ADR-02, EC-03).
+
+// newTestServiceWithRepo wires a Service against repo with a worker pool
+// and a fetch stub that never resolves anything — sufficient for every
+// test in this file that does not care about preview resolution itself
+// (T-11's dedicated preview tests use newTestServiceWithFetch instead).
+// Mirrors ideas' service_test.go newTestService helper.
+func newTestServiceWithRepo(t *testing.T, repo *fakeRepo) *Service {
+	t.Helper()
+	pool := ideas.NewWorkerPool(context.Background())
+	t.Cleanup(pool.Close)
+	noFetch := func(ctx context.Context, rawURL string) (Preview, error) {
+		t.Fatal("fetch must not be called when no test URL was given")
+		return Preview{}, nil
+	}
+	return NewService(repo, repo, noFetch, pool)
+}
 
 func errorsAs(err error, target any) bool {
 	switch t := target.(type) {
@@ -36,11 +55,11 @@ func strPtr(s string) *string { return &s }
 
 func TestService_Add_EmptyOrWhitespaceName(t *testing.T) {
 	repo := newFakeRepo()
-	svc := NewService(repo, repo)
+	svc := newTestServiceWithRepo(t, repo)
 
 	cases := []string{"", "   ", "\t\t", "\n"}
 	for _, raw := range cases {
-		_, err := svc.Add(t.Context(), 1, raw, nil, nil)
+		_, err := svc.Add(t.Context(), 1, raw, nil, nil, nil)
 		var valErr ErrValidation
 		if !errorsAs(err, &valErr) || valErr.Code != ValidationEmpty {
 			t.Fatalf("Add(%q) = %v, want ErrValidation{Code: empty}", raw, err)
@@ -51,10 +70,10 @@ func TestService_Add_EmptyOrWhitespaceName(t *testing.T) {
 // EC-02: name at the 200/201 character boundary.
 func TestService_Add_NameLengthBoundary(t *testing.T) {
 	repo := newFakeRepo()
-	svc := NewService(repo, repo)
+	svc := newTestServiceWithRepo(t, repo)
 
 	name200 := strings.Repeat("a", 200)
-	project, err := svc.Add(t.Context(), 1, name200, nil, nil)
+	project, err := svc.Add(t.Context(), 1, name200, nil, nil, nil)
 	if err != nil {
 		t.Fatalf("Add(200 chars) unexpected error: %v", err)
 	}
@@ -63,7 +82,7 @@ func TestService_Add_NameLengthBoundary(t *testing.T) {
 	}
 
 	name201 := strings.Repeat("b", 201)
-	_, err = svc.Add(t.Context(), 1, name201, nil, nil)
+	_, err = svc.Add(t.Context(), 1, name201, nil, nil, nil)
 	var valErr ErrValidation
 	if !errorsAs(err, &valErr) || valErr.Code != ValidationTooLong {
 		t.Fatalf("Add(201 chars) = %v, want ErrValidation{Code: too_long}", err)
@@ -73,10 +92,10 @@ func TestService_Add_NameLengthBoundary(t *testing.T) {
 // EC-16: budget at the 200/201 character boundary.
 func TestService_Add_BudgetLengthBoundary(t *testing.T) {
 	repo := newFakeRepo()
-	svc := NewService(repo, repo)
+	svc := newTestServiceWithRepo(t, repo)
 
 	budget200 := strings.Repeat("c", 200)
-	project, err := svc.Add(t.Context(), 1, "Televisor", strPtr(budget200), nil)
+	project, err := svc.Add(t.Context(), 1, "Televisor", strPtr(budget200), nil, nil)
 	if err != nil {
 		t.Fatalf("Add(budget 200 chars) unexpected error: %v", err)
 	}
@@ -85,7 +104,7 @@ func TestService_Add_BudgetLengthBoundary(t *testing.T) {
 	}
 
 	budget201 := strings.Repeat("d", 201)
-	_, err = svc.Add(t.Context(), 1, "Nevera", strPtr(budget201), nil)
+	_, err = svc.Add(t.Context(), 1, "Nevera", strPtr(budget201), nil, nil)
 	var valErr ErrValidation
 	if !errorsAs(err, &valErr) || valErr.Code != ValidationBudgetTooLong {
 		t.Fatalf("Add(budget 201 chars) = %v, want ErrValidation{Code: budget_too_long}", err)
@@ -96,9 +115,9 @@ func TestService_Add_BudgetLengthBoundary(t *testing.T) {
 // the resulting project shows no budget field.
 func TestService_Add_BudgetOptional(t *testing.T) {
 	repo := newFakeRepo()
-	svc := NewService(repo, repo)
+	svc := newTestServiceWithRepo(t, repo)
 
-	p1, err := svc.Add(t.Context(), 1, "Sofà", nil, nil)
+	p1, err := svc.Add(t.Context(), 1, "Sofà", nil, nil, nil)
 	if err != nil {
 		t.Fatalf("Add(nil budget) unexpected error: %v", err)
 	}
@@ -106,7 +125,7 @@ func TestService_Add_BudgetOptional(t *testing.T) {
 		t.Errorf("Add(nil budget) = %+v, want nil budget", p1.Budget)
 	}
 
-	p2, err := svc.Add(t.Context(), 1, "Taula", strPtr("   "), nil)
+	p2, err := svc.Add(t.Context(), 1, "Taula", strPtr("   "), nil, nil)
 	if err != nil {
 		t.Fatalf("Add(whitespace-only budget) unexpected error: %v", err)
 	}
@@ -118,9 +137,9 @@ func TestService_Add_BudgetOptional(t *testing.T) {
 // EC-17: a target_date in the past is accepted without error.
 func TestService_Add_TargetDatePastAccepted(t *testing.T) {
 	repo := newFakeRepo()
-	svc := NewService(repo, repo)
+	svc := newTestServiceWithRepo(t, repo)
 
-	project, err := svc.Add(t.Context(), 1, "Pintar habitació", nil, strPtr("2000-01-01"))
+	project, err := svc.Add(t.Context(), 1, "Pintar habitació", nil, strPtr("2000-01-01"), nil)
 	if err != nil {
 		t.Fatalf("Add(past target_date) unexpected error: %v, want acceptance (EC-17)", err)
 	}
@@ -132,11 +151,11 @@ func TestService_Add_TargetDatePastAccepted(t *testing.T) {
 // Format validation: an invalid target_date is rejected.
 func TestService_Add_TargetDateInvalidFormat(t *testing.T) {
 	repo := newFakeRepo()
-	svc := NewService(repo, repo)
+	svc := newTestServiceWithRepo(t, repo)
 
 	cases := []string{"not-a-date", "2026-13-01", "01/12/2026", "2026-12-1"}
 	for _, raw := range cases {
-		_, err := svc.Add(t.Context(), 1, "Projecte", nil, strPtr(raw))
+		_, err := svc.Add(t.Context(), 1, "Projecte", nil, strPtr(raw), nil)
 		var valErr ErrValidation
 		if !errorsAs(err, &valErr) || valErr.Code != ValidationInvalidDate {
 			t.Fatalf("Add(target_date=%q) = %v, want ErrValidation{Code: invalid_target_date}", raw, err)
@@ -147,9 +166,9 @@ func TestService_Add_TargetDateInvalidFormat(t *testing.T) {
 // AC-15: target_date is optional — nil and empty-string both accepted.
 func TestService_Add_TargetDateOptional(t *testing.T) {
 	repo := newFakeRepo()
-	svc := NewService(repo, repo)
+	svc := newTestServiceWithRepo(t, repo)
 
-	p1, err := svc.Add(t.Context(), 1, "Terrassa", nil, nil)
+	p1, err := svc.Add(t.Context(), 1, "Terrassa", nil, nil, nil)
 	if err != nil {
 		t.Fatalf("Add(nil target_date) unexpected error: %v", err)
 	}
@@ -157,7 +176,7 @@ func TestService_Add_TargetDateOptional(t *testing.T) {
 		t.Errorf("Add(nil target_date) = %+v, want nil", p1.TargetDate)
 	}
 
-	p2, err := svc.Add(t.Context(), 1, "Jardí", nil, strPtr(""))
+	p2, err := svc.Add(t.Context(), 1, "Jardí", nil, strPtr(""), nil)
 	if err != nil {
 		t.Fatalf("Add(empty target_date) unexpected error: %v", err)
 	}
@@ -208,15 +227,15 @@ func TestNormalizeName_NFCvsNFD(t *testing.T) {
 // the same combinations already proved for NIU-1.
 func TestService_Add_DuplicateTrimmedCaseInsensitive(t *testing.T) {
 	repo := newFakeRepo()
-	svc := NewService(repo, repo)
+	svc := newTestServiceWithRepo(t, repo)
 
-	if _, err := svc.Add(t.Context(), 1, "Televisor nou", nil, nil); err != nil {
+	if _, err := svc.Add(t.Context(), 1, "Televisor nou", nil, nil, nil); err != nil {
 		t.Fatalf("seed Add unexpected error: %v", err)
 	}
 
 	dupCases := []string{"televisor nou", "Televisor nou ", "TELEVISOR NOU", "  televisor nou  "}
 	for _, raw := range dupCases {
-		_, err := svc.Add(t.Context(), 1, raw, nil, nil)
+		_, err := svc.Add(t.Context(), 1, raw, nil, nil, nil)
 		var dupErr ErrDuplicate
 		if !errorsAs(err, &dupErr) {
 			t.Fatalf("Add(%q) = %v, want ErrDuplicate", raw, err)
@@ -233,9 +252,9 @@ func TestService_Add_DuplicateAcrossAllStates(t *testing.T) {
 	for _, state := range states {
 		t.Run(string(state), func(t *testing.T) {
 			repo := newFakeRepo()
-			svc := NewService(repo, repo)
+			svc := newTestServiceWithRepo(t, repo)
 
-			created, err := svc.Add(t.Context(), 1, "Repintar cuina", nil, nil)
+			created, err := svc.Add(t.Context(), 1, "Repintar cuina", nil, nil, nil)
 			if err != nil {
 				t.Fatalf("seed Add unexpected error: %v", err)
 			}
@@ -246,7 +265,7 @@ func TestService_Add_DuplicateAcrossAllStates(t *testing.T) {
 				}
 			}
 
-			_, err = svc.Add(t.Context(), 1, "repintar cuina", nil, nil)
+			_, err = svc.Add(t.Context(), 1, "repintar cuina", nil, nil, nil)
 			var dupErr ErrDuplicate
 			if !errorsAs(err, &dupErr) {
 				t.Fatalf("Add(duplicate) while existing is %s = %v, want ErrDuplicate", state, err)
@@ -259,9 +278,9 @@ func TestService_Add_DuplicateAcrossAllStates(t *testing.T) {
 // including reversions (decidit -> idea, fet -> decidit).
 func TestService_ChangeState_AnyDirectionValid(t *testing.T) {
 	repo := newFakeRepo()
-	svc := NewService(repo, repo)
+	svc := newTestServiceWithRepo(t, repo)
 
-	created, err := svc.Add(t.Context(), 1, "Moble nou", nil, nil)
+	created, err := svc.Add(t.Context(), 1, "Moble nou", nil, nil, nil)
 	if err != nil {
 		t.Fatalf("seed Add unexpected error: %v", err)
 	}
@@ -280,9 +299,9 @@ func TestService_ChangeState_AnyDirectionValid(t *testing.T) {
 
 func TestService_ChangeState_InvalidStateRejected(t *testing.T) {
 	repo := newFakeRepo()
-	svc := NewService(repo, repo)
+	svc := newTestServiceWithRepo(t, repo)
 
-	created, err := svc.Add(t.Context(), 1, "Cadires noves", nil, nil)
+	created, err := svc.Add(t.Context(), 1, "Cadires noves", nil, nil, nil)
 	if err != nil {
 		t.Fatalf("seed Add unexpected error: %v", err)
 	}
@@ -296,7 +315,7 @@ func TestService_ChangeState_InvalidStateRejected(t *testing.T) {
 
 func TestService_ChangeState_NotFound(t *testing.T) {
 	repo := newFakeRepo()
-	svc := NewService(repo, repo)
+	svc := newTestServiceWithRepo(t, repo)
 
 	_, err := svc.ChangeState(t.Context(), 1, 9999, StateDecidit)
 	var notFound ErrNotFound
@@ -307,9 +326,9 @@ func TestService_ChangeState_NotFound(t *testing.T) {
 
 func TestService_Delete_Idempotent(t *testing.T) {
 	repo := newFakeRepo()
-	svc := NewService(repo, repo)
+	svc := newTestServiceWithRepo(t, repo)
 
-	created, err := svc.Add(t.Context(), 1, "Estanteria", nil, nil)
+	created, err := svc.Add(t.Context(), 1, "Estanteria", nil, nil, nil)
 	if err != nil {
 		t.Fatalf("seed Add unexpected error: %v", err)
 	}
@@ -326,9 +345,9 @@ func TestService_Delete_Idempotent(t *testing.T) {
 // project — the duplicate check only looks at active (non-deleted) rows.
 func TestService_Add_DuplicateAllowedAfterDelete(t *testing.T) {
 	repo := newFakeRepo()
-	svc := NewService(repo, repo)
+	svc := newTestServiceWithRepo(t, repo)
 
-	created, err := svc.Add(t.Context(), 1, "Rentadora", nil, nil)
+	created, err := svc.Add(t.Context(), 1, "Rentadora", nil, nil, nil)
 	if err != nil {
 		t.Fatalf("seed Add unexpected error: %v", err)
 	}
@@ -336,7 +355,7 @@ func TestService_Add_DuplicateAllowedAfterDelete(t *testing.T) {
 		t.Fatalf("Delete unexpected error: %v", err)
 	}
 
-	recreated, err := svc.Add(t.Context(), 1, "Rentadora", nil, nil)
+	recreated, err := svc.Add(t.Context(), 1, "Rentadora", nil, nil, nil)
 	if err != nil {
 		t.Fatalf("Add(same name after delete) = %v, want success (EC-04)", err)
 	}

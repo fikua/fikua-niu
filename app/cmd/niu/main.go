@@ -1,9 +1,10 @@
 // Command niu is the single Go binary serving both the JSON API
 // (/api/v1/*) and the static frontend (embedded web/) from the same
 // process (PLAN.md §2.1). Wiring order: config → store → credential seed →
-// items.Service → projects.Service (NIU-5, same *Store/config/
-// authenticator, no change to items' wiring) → fetchsafe.NewClient +
-// ideas worker pool + ideas.Service (NIU-6, tasks.md T-08/T-14) →
+// items.Service → fetchsafe.NewClient + shared preview worker pool →
+// ideas.Service (NIU-6, tasks.md T-08/T-14) → projects.Service (NIU-5's
+// three-state lifecycle, NIU-11's link preview reusing the same
+// fetchsafeClient/previewPool as ideas, tasks.md T-06) →
 // auth.PasswordAuthenticator → cleanup goroutine → httpapi.NewRouter
 // (design.md §5/§6.2, T-19).
 package main
@@ -85,22 +86,29 @@ func run() error {
 	repo := store.NewItemsRepository(st.DB)
 	svc := items.NewService(repo, repo, repo)
 
-	projectsRepo := store.NewProjectsRepository(st.DB)
-	projectsSvc := projects.NewService(projectsRepo, projectsRepo)
-
 	// ctx/stop is the process' own shutdown context — cancelled on
-	// SIGINT/SIGTERM. The ideas worker pool (ADR-03, T-08) is deliberately
-	// wired against THIS context, never a per-request context: a scrape
-	// must keep running after the POST that queued it has already
-	// responded, and must only stop when the whole process is shutting
-	// down.
+	// SIGINT/SIGTERM. The preview worker pool (ADR-03, T-08 of NIU-6) is
+	// deliberately wired against THIS context, never a per-request
+	// context: a scrape must keep running after the POST that queued it
+	// has already responded, and must only stop when the whole process is
+	// shutting down.
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 
-	ideasRepo := store.NewIdeasRepository(st.DB)
+	// fetchsafeClient is THE single client for the whole process (T-03h of
+	// NIU-6) — never one per service. previewPool is likewise shared
+	// between ideas and projects (NIU-11, tasks.md T-06): 6 workers
+	// already cover the load of a two-person household app, and a second
+	// pool would just double the memory ceiling (see ideas.WorkerPool's
+	// own sizing comment) without either space actually needing dedicated
+	// capacity. Named "previewPool", not "ideasPool", precisely because it
+	// is no longer ideas-exclusive — a name that lied about that would be
+	// worse than no comment at all.
 	fetchsafeClient := fetchsafe.NewClient()
-	ideasPool := ideas.NewWorkerPool(ctx)
-	defer ideasPool.Close()
+	previewPool := ideas.NewWorkerPool(ctx)
+	defer previewPool.Close()
+
+	ideasRepo := store.NewIdeasRepository(st.DB)
 	ideasFetch := func(fetchCtx context.Context, rawURL string) (ideas.Preview, error) {
 		preview, err := fetchsafe.FetchPreview(fetchCtx, fetchsafeClient, rawURL)
 		return ideas.Preview{
@@ -110,7 +118,19 @@ func run() error {
 			Partial:     preview.Partial,
 		}, err
 	}
-	ideasSvc := ideas.NewService(ideasRepo, ideasRepo, ideasFetch, ideasPool)
+	ideasSvc := ideas.NewService(ideasRepo, ideasRepo, ideasFetch, previewPool)
+
+	projectsRepo := store.NewProjectsRepository(st.DB)
+	projectsFetch := func(fetchCtx context.Context, rawURL string) (projects.Preview, error) {
+		preview, err := fetchsafe.FetchPreview(fetchCtx, fetchsafeClient, rawURL)
+		return projects.Preview{
+			Title:       preview.Title,
+			ImageURL:    preview.ImageURL,
+			Description: preview.Description,
+			Partial:     preview.Partial,
+		}, err
+	}
+	projectsSvc := projects.NewService(projectsRepo, projectsRepo, projectsFetch, previewPool)
 
 	authenticator, err := auth.NewPasswordAuthenticator(st.DB, cfg.SessionSecret)
 	if err != nil {

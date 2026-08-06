@@ -23,6 +23,13 @@ func noopIdeasFetch(_ context.Context, _ string) (ideas.Preview, error) {
 	return ideas.Preview{}, nil
 }
 
+// noopProjectsFetch mirrors noopIdeasFetch for the projects domain
+// (NIU-11) — same rationale, router-level tests never exercise scrape
+// outcomes.
+func noopProjectsFetch(_ context.Context, _ string) (projects.Preview, error) {
+	return projects.Preview{}, nil
+}
+
 // TestNoMutatingGETRoutes introspects the chi route table (EC-08/NFR-04)
 // and asserts that no GET route also has a POST/PATCH/PUT/DELETE handler
 // registered on the exact same pattern — i.e. GET is never wired to a
@@ -81,12 +88,12 @@ func TestNoMutatingGETRoutes(t *testing.T) {
 func TestGETRequestsDoNotMutateState(t *testing.T) {
 	repo := &spyRepo{}
 	svc := items.NewService(repo, &spySink{}, &spyUsers{})
+	previewPool := ideas.NewWorkerPool(context.Background())
+	t.Cleanup(previewPool.Close)
 	projectsRepo := &spyProjectsRepo{}
-	projectsSvc := projects.NewService(projectsRepo, &spySink{})
+	projectsSvc := projects.NewService(projectsRepo, &spySink{}, noopProjectsFetch, previewPool)
 	ideasRepo := &spyIdeasRepo{}
-	ideasPool := ideas.NewWorkerPool(context.Background())
-	t.Cleanup(ideasPool.Close)
-	ideasSvc := ideas.NewService(ideasRepo, &spySink{}, noopIdeasFetch, ideasPool)
+	ideasSvc := ideas.NewService(ideasRepo, &spySink{}, noopIdeasFetch, previewPool)
 	router := NewRouter(svc, projectsSvc, ideasSvc, fakeHealthChecker{}, fakeAuthenticator{}, fstest.MapFS{}, true)
 
 	chiRouter, ok := router.(chi.Router)
@@ -226,9 +233,14 @@ type spyProjectsRepo struct {
 	mutations []string
 }
 
-func (r *spyProjectsRepo) Create(_ context.Context, _ int64, _, _ string, _, _ *string) (projects.Project, error) {
+func (r *spyProjectsRepo) Create(_ context.Context, _ int64, _, _ string, _, _, _ *string) (projects.Project, error) {
 	r.mutations = append(r.mutations, "Create")
 	return projects.Project{}, nil
+}
+
+func (r *spyProjectsRepo) UpdatePreview(_ context.Context, _ int64, _, _, _ *string, _ string) error {
+	r.mutations = append(r.mutations, "UpdatePreview")
+	return nil
 }
 
 func (r *spyProjectsRepo) UpdateState(_ context.Context, _, _ int64, _ projects.State) (projects.Project, projects.State, error) {

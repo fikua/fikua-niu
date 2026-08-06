@@ -646,7 +646,28 @@ header.app-header .wordmark {
 .project-row:hover .delete-btn { opacity: 1; pointer-events: auto; }
 .project-row:focus-within .delete-btn { opacity: 1; pointer-events: auto; }
 
+/* NIU-11: thumbnail sits in the row itself (decision 1 — no expandable
+   card). Sized to .state-badge's min-height (32px), NOT larger: the row
+   is a flex box whose height follows its tallest child, so a 48px
+   thumbnail would make every row with an image 16px taller than its
+   neighbours — the exact visual inconsistency decision 1 set out to
+   avoid. Keep these two values in sync: if .state-badge's min-height
+   changes, this must follow. flex-shrink: 0 keeps it from being
+   squeezed by a long name on narrow layouts. */
+.project-thumb {
+  width: 32px;
+  height: 32px;
+  flex: 0 0 auto;
+  border-radius: var(--radius-sm);
+  object-fit: cover;
+}
+
 .project-name { flex: 1 1 160px; font-weight: var(--type-body-strong-weight); }
+a.project-name {
+  color: var(--color-terracotta);
+  text-decoration: none;
+}
+a.project-name:hover, a.project-name:focus-visible { text-decoration: underline; }
 .project-budget, .project-target-date {
   font-size: var(--type-caption-size);
   color: var(--color-text-secondary);
@@ -701,6 +722,12 @@ header.app-header .wordmark {
 @media (max-width: 767px) {
   .project-row { flex-direction: column; align-items: stretch; }
   .state-badge { min-height: var(--touch-target-min); }
+  /* NIU-11: stacked layout, so the thumbnail is additive to row height
+     here no matter its size — the desktop "same height with or without"
+     guarantee cannot hold in a column. Left-aligned rather than
+     stretched: object-fit: cover on a full-width img would crop the
+     product photo hard on a phone. */
+  .project-thumb { align-self: flex-start; }
   .project-row .delete-btn { width: 44px; height: 44px; min-width: 44px; min-height: 44px; font-size: 18px; }
   .project-row:hover .delete-btn,
   .project-row:focus-within .delete-btn { opacity: 1; pointer-events: auto; }

@@ -77,6 +77,31 @@ func newIdeasService(t *testing.T, st *store.Store) *ideas.Service {
 	return ideas.NewService(ideasRepo, ideasRepo, fetch, pool)
 }
 
+// newProjectsService wires a real projects.Service against st, using the
+// real fetchsafe.FetchPreview + its own bounded worker pool — mirrors
+// newIdeasService above (NIU-11 replicates NIU-6's pattern exactly).
+// cmd/niu/main.go shares a single pool between ideas and projects
+// (tasks.md T-06); these test servers use one pool per service instead,
+// which is immaterial here since no test asserts on the two domains
+// contending for the same pool capacity.
+func newProjectsService(t *testing.T, st *store.Store) *projects.Service {
+	t.Helper()
+	projectsRepo := store.NewProjectsRepository(st.DB)
+	client := fetchsafe.NewClient()
+	pool := ideas.NewWorkerPool(context.Background())
+	t.Cleanup(pool.Close)
+	fetch := func(ctx context.Context, rawURL string) (projects.Preview, error) {
+		preview, err := fetchsafe.FetchPreview(ctx, client, rawURL)
+		return projects.Preview{
+			Title:       preview.Title,
+			ImageURL:    preview.ImageURL,
+			Description: preview.Description,
+			Partial:     preview.Partial,
+		}, err
+	}
+	return projects.NewService(projectsRepo, projectsRepo, fetch, pool)
+}
+
 func newTestServer(t *testing.T, userID int64) *testServer {
 	t.Helper()
 
@@ -91,8 +116,7 @@ func newTestServer(t *testing.T, userID int64) *testServer {
 
 	repo := store.NewItemsRepository(st.DB)
 	svc := items.NewService(repo, repo, repo)
-	projectsRepo := store.NewProjectsRepository(st.DB)
-	projectsSvc := projects.NewService(projectsRepo, projectsRepo)
+	projectsSvc := newProjectsService(t, st)
 	ideasSvc := newIdeasService(t, st)
 	authenticator := auth.StubAuthenticator{UserID: userID}
 
@@ -148,8 +172,7 @@ func newAuthTestServer(t *testing.T) *authTestServer {
 
 	repo := store.NewItemsRepository(st.DB)
 	svc := items.NewService(repo, repo, repo)
-	projectsRepo := store.NewProjectsRepository(st.DB)
-	projectsSvc := projects.NewService(projectsRepo, projectsRepo)
+	projectsSvc := newProjectsService(t, st)
 	ideasSvc := newIdeasService(t, st)
 
 	authenticator, err := auth.NewPasswordAuthenticator(st.DB, sessionSecret)

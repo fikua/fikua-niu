@@ -45,13 +45,20 @@ func NewService(repo Repository, sink EventSink, fetch PreviewFetcher, pool *Wor
 	return &Service{repo: repo, sink: sink, fetch: fetch, pool: pool}
 }
 
-// validateURL trims and validates the raw URL: rejects empty/whitespace-
+// ValidateURL trims and validates the raw URL: rejects empty/whitespace-
 // only input (EC-10) and validates ONLY the scheme (http/https,
 // NFR-05/EC-01) — the same cheap, network-free check fetchsafe itself
 // performs first, reused here so Service.Add never creates a row for an
 // input that fetchsafe would immediately reject anyway. No network
 // request happens during this validation.
-func validateURL(rawURL string) (string, error) {
+//
+// Exported (NIU-11, tasks.md T-04) so internal/projects can reuse the
+// exact same scheme check for its own optional url field instead of
+// hand-duplicating it — the two packages' ErrValidation types are
+// intentionally distinct (each has its own Code namespace for its
+// httpapi/frontend consumers), so projects.Service wraps this function's
+// result into its own ErrValidation rather than returning ideas'.
+func ValidateURL(rawURL string) (string, error) {
 	trimmed := strings.TrimSpace(rawURL)
 	if trimmed == "" {
 		return "", ErrValidation{
@@ -82,7 +89,7 @@ func validateURL(rawURL string) (string, error) {
 // response never waits for the scrape), and enqueues the scrape onto the
 // bounded worker pool. Covers AC-01 (base), AC-02 (base), EC-01, EC-10.
 func (s *Service) Add(ctx context.Context, userID int64, rawURL string) (Idea, error) {
-	validURL, err := validateURL(rawURL)
+	validURL, err := ValidateURL(rawURL)
 	if err != nil {
 		return Idea{}, err
 	}

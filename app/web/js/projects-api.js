@@ -65,11 +65,11 @@ export function getProjects() {
   return request('/api/v1/projects').then((body) => body.projects);
 }
 
-export function addProject(name, budget, targetDate) {
+export function addProject(name, budget, targetDate, url) {
   return request('/api/v1/projects', {
     method: 'POST',
     headers: mutationHeaders(),
-    body: JSON.stringify({ name, budget: budget || null, target_date: targetDate || null }),
+    body: JSON.stringify({ name, budget: budget || null, target_date: targetDate || null, url: url || null }),
   });
 }
 

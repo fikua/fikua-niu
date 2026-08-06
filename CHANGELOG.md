@@ -7,6 +7,40 @@ i el projecte s'adhereix a [Semantic Versioning](https://semver.org/lang/ca/).
 
 ## [Unreleased]
 
+### Added
+
+- **NIU-11 — URL amb previsualització (miniatura) als projectes:** rèplica
+  directa del patró ja provat a NIU-6 (`fetchsafe.FetchPreview` +
+  `WorkerPool` + `preview_status`), no un disseny nou. `internal/projects`
+  guanya els camps opcionals `URL`/`Title`/`ImageURL`/`Description`/
+  `PreviewStatus` (tots `*string`) i el mateix seam `PreviewFetcher` que
+  `internal/ideas` — el paquet segueix sense importar `net/http` ni
+  `database/sql`. Migració goose `005_projects_url_preview.sql`:
+  `preview_status` és **NULL-able** aquí (a diferència de la `NOT NULL
+  DEFAULT 'pending'` d'`activity_ideas`), perquè un projecte sense URL no
+  té cap previsualització pendent — `pending` hi seria mentida. Un
+  projecte creat amb URL s'insereix immediatament amb `preview_status =
+  'pending'` i encua el scrape al mateix worker pool de 6 workers que
+  `internal/ideas` ja utilitza (`cmd/niu/main.go`, variable renombrada a
+  `previewPool` perquè ja no és exclusiu d'idees) — mai un segon pool.
+  `ideas.ValidateURL` s'exporta perquè `internal/projects` reutilitzi
+  exactament la mateixa validació d'esquema `http(s)`, sense duplicar-la.
+  Contracte HTTP (`POST/GET /api/v1/projects`) exposa `url`/`title`/
+  `image_url`/`preview_status` però **mai `description`**: es persisteix
+  perquè ve gratis del mateix `Preview`, però la UI no la mostra i el
+  contracte no ha de publicar un camp que ningú consumeix. Frontend: fila
+  de projecte compacta (mai una targeta expandible) amb una miniatura
+  ~48px + nom clicable (`rel="noopener noreferrer"`) quan hi ha URL —
+  sense URL, la fila es veu exactament com abans, sense forat ni
+  placeholder; `setAttribute('src'/'href', ...)` per a la miniatura/enllaç,
+  mai `innerHTML` (NFR-02). Fora d'abast: editar la URL d'un projecte ja
+  creat, imatge gran, descripció visible. Suite de tests: 10 nous (7
+  unitaris a `internal/projects` — URL amb/sense encua correctament,
+  error de fetch → `failed`, parcial sense camps → `failed` — + 3
+  d'integració a `tests/integration/projects_test.go` — `POST` amb URL
+  retorna `201` sense esperar el scrape, `description` absent del JSON,
+  camps de previsualització `null` sense URL).
+
 ## [0.1.0] - 2026-08-03
 
 ### Added
