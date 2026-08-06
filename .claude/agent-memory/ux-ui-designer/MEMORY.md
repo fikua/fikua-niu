@@ -1,0 +1,2 @@
+- [Niu project conventions](project_niu.md) — accent-token-per-space pattern, contrast rules, axe-core coverage gaps, E2E spec location
+- [Token values may drift post-approval](feedback_token_values_may_drift_post_approval.md) — a contrast audit may legitimately retune my proposed hex values downstream; check shipped CSS, flag drift as non-blocking doc hygiene

@@ -1,0 +1,1 @@
+- [Niu project](project_niu.md) — ad-hoc review conventions, SPA fallback gotcha (router.go masks missing-asset 404s), rigor bar reference (NIU-5 review.md)
