@@ -30,3 +30,6 @@ app/tests/e2e/.auth-state.json
 
 # Sistema
 .DS_Store
+
+# Memòria dels agents del framework SDD (local, no compartida)
+**/.claude/agent-memory/
