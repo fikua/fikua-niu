@@ -143,7 +143,7 @@ func (s *Service) resolvePreview(ctx context.Context, ideaID int64, rawURL strin
 			status = PreviewFailed
 		}
 	} else {
-		slog.Debug("fetchsafe: preview resolution failed", "idea_id", ideaID, "error", err)
+		slog.Debug("fetchsafe: preview resolution failed", "idea_id", ideaID, "url", rawURL, "error", err)
 	}
 
 	if updateErr := s.repo.UpdatePreview(ctx, ideaID, title, imageURL, description, status); updateErr != nil {

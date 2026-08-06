@@ -44,4 +44,14 @@ var (
 	// ErrTooManyRedirects is returned when the redirect chain exceeds the
 	// 5-hop limit (T-03e, NFR-06/NFR-07/EC-04).
 	ErrTooManyRedirects = errors.New("fetchsafe: too many redirects")
+
+	// ErrHTTPStatus is returned when the destination answers with a
+	// non-2xx status. Before this existed, an error page (a 429 bot wall,
+	// a 404, a 500) reached the Open Graph parser as if it were an
+	// ordinary page: it parsed cleanly, found no og: tags, and resolved to
+	// preview_status='failed' — indistinguishable from a legitimate page
+	// that simply has no Open Graph metadata. Rejecting explicitly keeps
+	// the two apart in logs. It stays a plain fallback for the user
+	// (NFR-06 — the reason is never surfaced), like every sentinel here.
+	ErrHTTPStatus = errors.New("fetchsafe: non-success HTTP status")
 )

@@ -92,6 +92,14 @@ func FetchPreview(ctx context.Context, client *http.Client, rawURL string) (Prev
 	}
 	defer resp.Body.Close()
 
+	// A non-2xx response carries no preview worth parsing: its body is an
+	// error page, which the OG parser would happily consume and report as
+	// "no tags found" — the same outcome as a real page without metadata,
+	// with no way to tell them apart afterwards.
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		return Preview{}, ErrHTTPStatus
+	}
+
 	contentType := resp.Header.Get("Content-Type")
 	if !isHTMLCompatible(contentType) {
 		// EC-09: non-HTML content (PDF, image, video, ...) — treated as a

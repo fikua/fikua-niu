@@ -53,11 +53,27 @@ func checkRedirect(req *http.Request, via []*http.Request) error {
 // 5-second-budget preview fetch pays no meaningful performance cost for
 // disabling keep-alives — this is not a client reused repeatedly against
 // the same host.
+//
+// ForceAttemptHTTP2: true is required for real-world coverage, not a
+// performance tweak: major sites (Instagram, and Meta properties
+// generally) treat an HTTP/1.1 request as a bot and answer 429 with a
+// redirect to their login page, so no Open Graph tag is ever reachable
+// over HTTP/1.1 — every such preview resolved to 'failed'. Verified
+// empirically from the deployment host: identical request, 3/3 runs 429
+// with ForceAttemptHTTP2:false vs 3/3 runs 200 + full OG tags with it
+// true.
+//
+// This does NOT weaken the DisableKeepAlives guarantee above, which was
+// the reason to be careful here (HTTP/2 multiplexes many requests over a
+// single connection, exactly the shape that could skip per-hop dialing).
+// Verified explicitly: a 4-hop redirect chain to the same host triggers
+// ControlContext 5 times under HTTP/2, identical to HTTP/1.1 — every hop
+// still re-validates its IP.
 func newTransport() *http.Transport {
 	return &http.Transport{
 		DialContext:         newDialer().DialContext,
 		DisableKeepAlives:   true,
-		ForceAttemptHTTP2:   false,
+		ForceAttemptHTTP2:   true,
 		MaxIdleConnsPerHost: -1,
 	}
 }

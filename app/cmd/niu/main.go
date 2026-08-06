@@ -18,6 +18,7 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"strings"
 	"syscall"
 	"time"
 
@@ -36,7 +37,29 @@ import (
 // sessions and stale rate-limit buckets (ADR-04).
 const cleanupInterval = 1 * time.Hour
 
+// setupLogging installs the process-wide slog handler. Without this, Go's
+// default handler discards every Debug record, so diagnostics written at
+// that level — notably the per-idea reason a link preview failed
+// (ideas.Service.resolvePreview) — never reached the logs at all, and a
+// failing preview could only be diagnosed by reproducing it by hand.
+//
+// Level is read from NIU_LOG_LEVEL (debug|info|warn|error), defaulting to
+// info so production verbosity is unchanged unless explicitly raised.
+func setupLogging() {
+	level := slog.LevelInfo
+	switch strings.ToLower(strings.TrimSpace(os.Getenv("NIU_LOG_LEVEL"))) {
+	case "debug":
+		level = slog.LevelDebug
+	case "warn":
+		level = slog.LevelWarn
+	case "error":
+		level = slog.LevelError
+	}
+	slog.SetDefault(slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: level})))
+}
+
 func main() {
+	setupLogging()
 	if err := run(); err != nil {
 		slog.Error("niu: fatal", "error", err)
 		os.Exit(1)
