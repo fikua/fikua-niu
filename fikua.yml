@@ -68,6 +68,7 @@ workflow:
     review: true
     commit: true
     archive: true
+    quick: true                  # solo/local work on trunk — see /quick
   agents:
     # Core
     product_manager: true
