@@ -17,6 +17,16 @@ jobs:
   build:
     name: Vet, build, test
     runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:17-alpine
+        env:
+          POSTGRES_USER: niu
+          POSTGRES_PASSWORD: niu
+          POSTGRES_DB: niu_test
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U niu" --health-interval 2s --health-timeout 3s --health-retries 20
     defaults:
       run:
         working-directory: app
@@ -44,4 +54,6 @@ jobs:
         run: go build ./...
 
       - name: go test
-        run: go test ./...
+        env:
+          TEST_DATABASE_URL: postgres://niu:niu@localhost:5432/niu_test?sslmode=disable
+        run: go test -count=1 ./...

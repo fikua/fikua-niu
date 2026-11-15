@@ -1,9 +1,9 @@
 package integration
 
 import (
+	"fmt"
 	"net/http"
 	"net/http/httptest"
-	"path/filepath"
 	"strconv"
 	"sync"
 	"testing"
@@ -14,6 +14,7 @@ import (
 	"niu/internal/httpapi"
 	"niu/internal/items"
 	"niu/internal/store"
+	"niu/tests/testdb"
 )
 
 // twoUserServers wires two independent httptest.Server instances backed
@@ -28,10 +29,9 @@ type twoUserServers struct {
 func newTwoUserServers(t *testing.T) *twoUserServers {
 	t.Helper()
 
-	dir := t.TempDir()
-	dbPath := filepath.Join(dir, "niu.db")
+	dbURL := testdb.URL(t)
 
-	stA, err := store.Open(dbPath, niu.MigrationsFS)
+	stA, err := store.Open(dbURL, niu.MigrationsFS)
 	if err != nil {
 		t.Fatalf("store.Open (A): %v", err)
 	}
@@ -46,10 +46,10 @@ func newTwoUserServers(t *testing.T) *twoUserServers {
 	srvA := httptest.NewServer(routerA)
 	t.Cleanup(srvA.Close)
 
-	// A second Store instance opens the same underlying SQLite file
-	// (WAL mode allows this) so goose does not re-run migrations against
-	// a different logical database.
-	stB, err := store.Open(dbPath, niu.MigrationsFS)
+	// A second Store instance opens the same schema (a second process, as
+	// when two replicas run) so goose does not re-run migrations against a
+	// different logical database.
+	stB, err := store.Open(dbURL, niu.MigrationsFS)
 	if err != nil {
 		t.Fatalf("store.Open (B): %v", err)
 	}
@@ -141,39 +141,43 @@ func TestTwoUsers_ConcurrentMove_Repeated(t *testing.T) {
 	const rounds = 25
 
 	for round := 0; round < rounds; round++ {
-		srv := newTwoUserServers(t)
-		created := createItem(t, srv.A, "Cursa")
+		// A subtest per round, so each round's two stores (and their
+		// connection pools) are closed before the next one opens.
+		t.Run(fmt.Sprintf("round%d", round), func(t *testing.T) {
+			srv := newTwoUserServers(t)
+			created := createItem(t, srv.A, "Cursa")
 
-		var wg sync.WaitGroup
-		statuses := make([]int, 2)
-		wg.Add(2)
-		go func() {
-			defer wg.Done()
-			res := doJSON(t, http.MethodPatch, srv.A.URL+"/api/v1/items/"+idStr(created.ID), map[string]string{"location": "pantry"})
-			statuses[0] = res.StatusCode
-		}()
-		go func() {
-			defer wg.Done()
-			res := doJSON(t, http.MethodPatch, srv.B.URL+"/api/v1/items/"+idStr(created.ID), map[string]string{"location": "shopping"})
-			statuses[1] = res.StatusCode
-		}()
-		wg.Wait()
+			var wg sync.WaitGroup
+			statuses := make([]int, 2)
+			wg.Add(2)
+			go func() {
+				defer wg.Done()
+				res := doJSON(t, http.MethodPatch, srv.A.URL+"/api/v1/items/"+idStr(created.ID), map[string]string{"location": "pantry"})
+				statuses[0] = res.StatusCode
+			}()
+			go func() {
+				defer wg.Done()
+				res := doJSON(t, http.MethodPatch, srv.B.URL+"/api/v1/items/"+idStr(created.ID), map[string]string{"location": "shopping"})
+				statuses[1] = res.StatusCode
+			}()
+			wg.Wait()
 
-		for i, status := range statuses {
-			if status >= 500 {
-				t.Fatalf("round %d: concurrent PATCH #%d returned %d — AC-09 requires that neither request fails",
-					round, i, status)
+			for i, status := range statuses {
+				if status >= 500 {
+					t.Fatalf("round %d: concurrent PATCH #%d returned %d — AC-09 requires that neither request fails",
+						round, i, status)
+				}
 			}
-		}
 
-		listA := listItems(t, srv.A)
-		listB := listItemsFrom(t, srv.B)
-		if len(listA) != 1 || len(listB) != 1 {
-			t.Fatalf("round %d: expected one item on both sides, got A=%d B=%d", round, len(listA), len(listB))
-		}
-		if listA[0].Location != listB[0].Location {
-			t.Fatalf("round %d: clients diverge: A=%q B=%q", round, listA[0].Location, listB[0].Location)
-		}
+			listA := listItems(t, srv.A)
+			listB := listItemsFrom(t, srv.B)
+			if len(listA) != 1 || len(listB) != 1 {
+				t.Fatalf("round %d: expected one item on both sides, got A=%d B=%d", round, len(listA), len(listB))
+			}
+			if listA[0].Location != listB[0].Location {
+				t.Fatalf("round %d: clients diverge: A=%q B=%q", round, listA[0].Location, listB[0].Location)
+			}
+		})
 	}
 }
 

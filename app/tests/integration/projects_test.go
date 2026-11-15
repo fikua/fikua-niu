@@ -322,7 +322,7 @@ func assertStateChangedEventChainIsConsistent(t *testing.T, srv *testServer, pro
 	rows, err := srv.Store.DB.Query(
 		`SELECT payload FROM events
 		 WHERE kind = 'project_state_changed'
-		   AND json_extract(payload, '$.project_id') = ?`,
+		   AND (payload::json->>'project_id')::bigint = $1`,
 		projectID,
 	)
 	if err != nil {
@@ -400,7 +400,7 @@ func TestProjects_StaleDecidit_NoAutomaticChange(t *testing.T) {
 	// Simulate the project having sat untouched for six months.
 	staleTimestamp := time.Now().AddDate(0, -6, 0).UTC().Format("2006-01-02 15:04:05")
 	if _, err := srv.Store.DB.Exec(
-		`UPDATE projects SET updated_at = ? WHERE id = ?`, staleTimestamp, created.ID,
+		`UPDATE projects SET updated_at = $1 WHERE id = $2`, staleTimestamp, created.ID,
 	); err != nil {
 		t.Fatalf("simulate stale updated_at: %v", err)
 	}
@@ -440,7 +440,7 @@ func TestProjects_NoAbandonedState_OnlyDeleteAvailable(t *testing.T) {
 
 	// Confirm the CHECK constraint itself rejects a fourth state directly
 	// at the database level too — not just at the Go validation layer.
-	_, err := srv.Store.DB.Exec(`UPDATE projects SET state = 'abandonat' WHERE id = ?`, created.ID)
+	_, err := srv.Store.DB.Exec(`UPDATE projects SET state = 'abandonat' WHERE id = $1`, created.ID)
 	if err == nil {
 		t.Fatal("direct SQL UPDATE to state='abandonat' succeeded, want CHECK constraint violation (EC-06)")
 	}

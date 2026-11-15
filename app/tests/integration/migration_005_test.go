@@ -16,29 +16,29 @@ package integration
 
 import (
 	"database/sql"
-	"path/filepath"
 	"testing"
 
+	_ "github.com/jackc/pgx/v5/stdlib"
 	"github.com/pressly/goose/v3"
-	_ "modernc.org/sqlite"
 
 	niu "niu"
+	"niu/tests/testdb"
 )
 
 // openAt migrates a fresh database up to (and including) the given
 // version, mirroring what store.Open does except for stopping partway —
 // goose.UpTo is the only way to reconstruct "the schema as it was before
 // this change shipped".
-func openAt(t *testing.T, dbPath string, version int64) *sql.DB {
+func openAt(t *testing.T, dbURL string, version int64) *sql.DB {
 	t.Helper()
 
-	db, err := sql.Open("sqlite", "file:"+dbPath+"?_pragma=foreign_keys(on)")
+	db, err := sql.Open("pgx", dbURL)
 	if err != nil {
-		t.Fatalf("open sqlite: %v", err)
+		t.Fatalf("open postgres: %v", err)
 	}
 
 	goose.SetBaseFS(niu.MigrationsFS)
-	if err := goose.SetDialect("sqlite3"); err != nil {
+	if err := goose.SetDialect("postgres"); err != nil {
 		t.Fatalf("goose dialect: %v", err)
 	}
 	// goose logs every applied migration to stdout otherwise, which buries
@@ -56,16 +56,16 @@ func openAt(t *testing.T, dbPath string, version int64) *sql.DB {
 // then migrated. It must come out the other side with every new column
 // NULL — most importantly preview_status, which must NOT be 'pending'.
 func TestMigration005_PreExistingRow_KeepsNullPreviewStatus(t *testing.T) {
-	dbPath := filepath.Join(t.TempDir(), "niu.db")
+	dbURL := testdb.URL(t)
 
 	// 1. The world as it was before this change: schema at migration 004.
-	db := openAt(t, dbPath, 4)
+	db := openAt(t, dbURL, 4)
 
 	// Guard the premise: if 004 already had preview_status, this test
 	// would be silently vacuous forever after.
 	var hasColumn int
 	if err := db.QueryRow(
-		`SELECT count(*) FROM pragma_table_info('projects') WHERE name = 'preview_status'`,
+		`SELECT count(*) FROM information_schema.columns WHERE table_schema = current_schema() AND table_name = 'projects' AND column_name = 'preview_status'`,
 	).Scan(&hasColumn); err != nil {
 		t.Fatalf("pragma_table_info: %v", err)
 	}
@@ -74,7 +74,7 @@ func TestMigration005_PreExistingRow_KeepsNullPreviewStatus(t *testing.T) {
 	}
 
 	if _, err := db.Exec(
-		`INSERT INTO projects (name, name_normalized, state, budget) VALUES (?, ?, ?, ?)`,
+		`INSERT INTO projects (name, name_normalized, state, budget) VALUES ($1, $2, $3, $4)`,
 		"Sofà Kivik", "sofà kivik", "idea", "599 EUR",
 	); err != nil {
 		t.Fatalf("insert pre-migration project: %v", err)
@@ -84,7 +84,7 @@ func TestMigration005_PreExistingRow_KeepsNullPreviewStatus(t *testing.T) {
 	}
 
 	// 2. Deploy: migrate the same file the rest of the way up.
-	db = openAt(t, dbPath, 5)
+	db = openAt(t, dbURL, 5)
 	defer db.Close()
 
 	var (
@@ -98,7 +98,7 @@ func TestMigration005_PreExistingRow_KeepsNullPreviewStatus(t *testing.T) {
 		previewStatus sql.NullString
 	)
 	if err := db.QueryRow(
-		`SELECT name, budget, state, url, title, image_url, description, preview_status FROM projects WHERE name_normalized = ?`,
+		`SELECT name, budget, state, url, title, image_url, description, preview_status FROM projects WHERE name_normalized = $1`,
 		"sofà kivik",
 	).Scan(&name, &budget, &state, &url, &title, &imageURL, &description, &previewStatus); err != nil {
 		t.Fatalf("select migrated project: %v", err)
@@ -139,12 +139,12 @@ func TestMigration005_PreExistingRow_KeepsNullPreviewStatus(t *testing.T) {
 // B-09) and that re-applying Up afterwards works, which is what a
 // rollback-then-redeploy actually does.
 func TestMigration005_DownUp_RoundTrip(t *testing.T) {
-	dbPath := filepath.Join(t.TempDir(), "niu.db")
-	db := openAt(t, dbPath, 5)
+	dbURL := testdb.URL(t)
+	db := openAt(t, dbURL, 5)
 	defer db.Close()
 
 	if _, err := db.Exec(
-		`INSERT INTO projects (name, name_normalized, state, url, preview_status) VALUES (?, ?, ?, ?, ?)`,
+		`INSERT INTO projects (name, name_normalized, state, url, preview_status) VALUES ($1, $2, $3, $4, $5)`,
 		"Televisor", "televisor", "decidit", "https://example.com/tv", "ready",
 	); err != nil {
 		t.Fatalf("insert project: %v", err)
@@ -157,7 +157,7 @@ func TestMigration005_DownUp_RoundTrip(t *testing.T) {
 	// The row survives the rollback — only the columns go away.
 	var name, state string
 	if err := db.QueryRow(
-		`SELECT name, state FROM projects WHERE name_normalized = ?`, "televisor",
+		`SELECT name, state FROM projects WHERE name_normalized = $1`, "televisor",
 	).Scan(&name, &state); err != nil {
 		t.Fatalf("select after down: %v", err)
 	}
@@ -165,12 +165,12 @@ func TestMigration005_DownUp_RoundTrip(t *testing.T) {
 		t.Errorf("after Down: name=%q state=%q, want Televisor/decidit — rollback destroyed data", name, state)
 	}
 
-	// The unique index from migration 003 must survive too: SQLite's
-	// ALTER TABLE DROP COLUMN can rebuild a table, and losing this index
+	// The unique index from migration 003 must survive too: a bad
+	// Down that rebuilt the table could drop this index, and losing it
 	// would silently allow duplicate project names.
 	var indexCount int
 	if err := db.QueryRow(
-		`SELECT count(*) FROM sqlite_master WHERE type='index' AND name='idx_projects_name_normalized'`,
+		`SELECT count(*) FROM pg_indexes WHERE schemaname = current_schema() AND indexname = 'idx_projects_name_normalized'`,
 	).Scan(&indexCount); err != nil {
 		t.Fatalf("check index: %v", err)
 	}
@@ -185,7 +185,7 @@ func TestMigration005_DownUp_RoundTrip(t *testing.T) {
 	// And the columns are back, still NULL for the row that predates them.
 	var previewStatus sql.NullString
 	if err := db.QueryRow(
-		`SELECT preview_status FROM projects WHERE name_normalized = ?`, "televisor",
+		`SELECT preview_status FROM projects WHERE name_normalized = $1`, "televisor",
 	).Scan(&previewStatus); err != nil {
 		t.Fatalf("select after re-up: %v", err)
 	}

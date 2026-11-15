@@ -1,5 +1,5 @@
-// Package integration holds medium (integration) tests: real SQLite
-// database (temp file per test), real httpapi router, httptest.Server —
+// Package integration holds medium (integration) tests: real PostgreSQL
+// database (a throwaway schema per test, tests/testdb), real httpapi router, httptest.Server —
 // no mocks (qa-engineer test pyramid, requirements.md §6).
 package integration
 
@@ -13,7 +13,6 @@ import (
 	"net/http/cookiejar"
 	"net/http/httptest"
 	"net/url"
-	"path/filepath"
 	"testing"
 	"testing/fstest"
 
@@ -27,6 +26,7 @@ import (
 	"niu/internal/items"
 	"niu/internal/projects"
 	"niu/internal/store"
+	"niu/tests/testdb"
 )
 
 const (
@@ -46,7 +46,7 @@ const (
 )
 
 // testServer bundles an httptest.Server backed by a fresh temporary
-// SQLite database with migrations applied, using the given fixed user id
+// PostgreSQL schema with migrations applied, using the given fixed user id
 // for the auth stub (so tests can simulate "logged in as A" or "as B").
 type testServer struct {
 	*httptest.Server
@@ -105,10 +105,9 @@ func newProjectsService(t *testing.T, st *store.Store) *projects.Service {
 func newTestServer(t *testing.T, userID int64) *testServer {
 	t.Helper()
 
-	dir := t.TempDir()
-	dbPath := filepath.Join(dir, "niu.db")
+	dbURL := testdb.URL(t)
 
-	st, err := store.Open(dbPath, niu.MigrationsFS)
+	st, err := store.Open(dbURL, niu.MigrationsFS)
 	if err != nil {
 		t.Fatalf("store.Open: %v", err)
 	}
@@ -142,10 +141,9 @@ type authTestServer struct {
 func newAuthTestServer(t *testing.T) *authTestServer {
 	t.Helper()
 
-	dir := t.TempDir()
-	dbPath := filepath.Join(dir, "niu.db")
+	dbURL := testdb.URL(t)
 
-	st, err := store.Open(dbPath, niu.MigrationsFS)
+	st, err := store.Open(dbURL, niu.MigrationsFS)
 	if err != nil {
 		t.Fatalf("store.Open: %v", err)
 	}
@@ -159,10 +157,10 @@ func newAuthTestServer(t *testing.T) *authTestServer {
 	if err != nil {
 		t.Fatalf("bcrypt hash B: %v", err)
 	}
-	if _, err := st.DB.Exec(`UPDATE users SET password_hash = ? WHERE name = ?`, string(hashA), testUsernameA); err != nil {
+	if _, err := st.DB.Exec(`UPDATE users SET password_hash = $1 WHERE name = $2`, string(hashA), testUsernameA); err != nil {
 		t.Fatalf("seed password hash A: %v", err)
 	}
-	if _, err := st.DB.Exec(`UPDATE users SET password_hash = ? WHERE name = ?`, string(hashB), testUsernameB); err != nil {
+	if _, err := st.DB.Exec(`UPDATE users SET password_hash = $1 WHERE name = $2`, string(hashB), testUsernameB); err != nil {
 		t.Fatalf("seed password hash B: %v", err)
 	}
 

@@ -40,8 +40,9 @@ type UserIdentity struct {
 type Config struct {
 	// Port is the TCP port the HTTP server listens on.
 	Port string
-	// DBPath is the filesystem path to the SQLite database file.
-	DBPath string
+	// DatabaseURL is the PostgreSQL connection URL. Holds the role's
+	// password: never log it.
+	DatabaseURL string
 	// Env is the running environment ("production" by default).
 	Env string
 
@@ -63,9 +64,8 @@ type Config struct {
 }
 
 const (
-	defaultPort   = "8080"
-	defaultDBPath = "/data/niu.db"
-	defaultEnv    = "production"
+	defaultPort = "8080"
+	defaultEnv  = "production"
 )
 
 // usersJSON is the shape of the committed users.json file.
@@ -105,9 +105,9 @@ func Load(usersFS fs.FS) (Config, error) {
 	}
 
 	cfg := Config{
-		Port:   getEnvOrDefault("NIU_PORT", defaultPort),
-		DBPath: getEnvOrDefault("NIU_DB_PATH", defaultDBPath),
-		Env:    getEnvOrDefault("NIU_ENV", defaultEnv),
+		Port:        getEnvOrDefault("NIU_PORT", defaultPort),
+		DatabaseURL: os.Getenv("NIU_DATABASE_URL"),
+		Env:         getEnvOrDefault("NIU_ENV", defaultEnv),
 
 		SessionSecret: os.Getenv("NIU_SESSION_SECRET"),
 		UserA:         userA,
@@ -119,8 +119,8 @@ func Load(usersFS fs.FS) (Config, error) {
 	if cfg.Port == "" {
 		return Config{}, fmt.Errorf("config: NIU_PORT must not be empty")
 	}
-	if cfg.DBPath == "" {
-		return Config{}, fmt.Errorf("config: NIU_DB_PATH must not be empty")
+	if cfg.DatabaseURL == "" {
+		return Config{}, fmt.Errorf("config: NIU_DATABASE_URL must not be empty")
 	}
 
 	// EC-12/AC-13: the session secret and the two hashes are mandatory —

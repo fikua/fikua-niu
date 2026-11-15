@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
-	"path/filepath"
 	"sort"
 	"testing"
 	"testing/fstest"
@@ -15,6 +14,7 @@ import (
 	"niu/internal/httpapi"
 	"niu/internal/items"
 	"niu/internal/store"
+	"niu/tests/testdb"
 )
 
 // T-30 — EC-14 (restart persists data) and PERF-01/NFR-05 (p95 < 200ms
@@ -26,10 +26,9 @@ import (
 // container restart against the same volume), assert the item set is
 // identical.
 func TestRestart_DataPersists(t *testing.T) {
-	dir := t.TempDir()
-	dbPath := filepath.Join(dir, "niu.db")
+	dbURL := testdb.URL(t)
 
-	st1, err := store.Open(dbPath, niu.MigrationsFS)
+	st1, err := store.Open(dbURL, niu.MigrationsFS)
 	if err != nil {
 		t.Fatalf("store.Open (first): %v", err)
 	}
@@ -60,7 +59,7 @@ func TestRestart_DataPersists(t *testing.T) {
 
 	// Reopen the same file — equivalent to the container starting again
 	// against the same volume.
-	st2, err := store.Open(dbPath, niu.MigrationsFS)
+	st2, err := store.Open(dbURL, niu.MigrationsFS)
 	if err != nil {
 		t.Fatalf("store.Open (second): %v", err)
 	}
@@ -97,10 +96,9 @@ func TestListItems_P95Latency_With500Items(t *testing.T) {
 		t.Skip("skipping perf test in -short mode")
 	}
 
-	dir := t.TempDir()
-	dbPath := filepath.Join(dir, "niu.db")
+	dbURL := testdb.URL(t)
 
-	st, err := store.Open(dbPath, niu.MigrationsFS)
+	st, err := store.Open(dbURL, niu.MigrationsFS)
 	if err != nil {
 		t.Fatalf("store.Open: %v", err)
 	}

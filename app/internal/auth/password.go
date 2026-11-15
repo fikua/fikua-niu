@@ -133,7 +133,7 @@ func (a *PasswordAuthenticator) Login(username, password, ip string) (token stri
 	var id int64
 	var hash string
 	lookupErr := a.db.QueryRow(
-		`SELECT id, password_hash FROM users WHERE name = ?`, normalized,
+		`SELECT id, password_hash FROM users WHERE name = $1`, normalized,
 	).Scan(&id, &hash)
 
 	compareHash := a.dummyHash
@@ -171,18 +171,6 @@ func (a *PasswordAuthenticator) Login(username, password, ip string) (token stri
 	return tok, id, nil
 }
 
-// sqliteTimestampFormat matches the text format SQLite's own
-// CURRENT_TIMESTAMP produces (UTC, "YYYY-MM-DD HH:MM:SS") — every
-// timestamp this package writes must use the same format, otherwise a
-// naive Go time.Time (RFC3339, with a timezone offset suffix) sorts and
-// compares incorrectly against a column populated by CURRENT_TIMESTAMP
-// (ADR-04's CleanupExpired relies on this comparison being correct).
-const sqliteTimestampFormat = "2006-01-02 15:04:05"
-
-func formatSQLiteTimestamp(t time.Time) string {
-	return t.UTC().Format(sqliteTimestampFormat)
-}
-
 // CreateSession generates a new 256-bit opaque token, persists only its
 // SHA-256 hash (AC-08), and returns the plaintext token — which the caller
 // must place in a cookie and never store anywhere else (design.md §5 Flux
@@ -195,9 +183,9 @@ func (a *PasswordAuthenticator) CreateSession(userID int64) (token string, err e
 	token = base64.RawURLEncoding.EncodeToString(raw)
 	hash := hashToken(token)
 
-	expiresAt := formatSQLiteTimestamp(time.Now().Add(SessionTTL))
+	expiresAt := time.Now().Add(SessionTTL).UTC()
 	_, err = a.db.Exec(
-		`INSERT INTO sessions (token_hash, user_id, expires_at) VALUES (?, ?, ?)`,
+		`INSERT INTO sessions (token_hash, user_id, expires_at) VALUES ($1, $2, $3)`,
 		hash, userID, expiresAt,
 	)
 	if err != nil {
@@ -209,7 +197,7 @@ func (a *PasswordAuthenticator) CreateSession(userID int64) (token string, err e
 // Logout deletes the session identified by the given plaintext token
 // (idempotent: deleting an absent hash is not an error).
 func (a *PasswordAuthenticator) Logout(token string) error {
-	_, err := a.db.Exec(`DELETE FROM sessions WHERE token_hash = ?`, hashToken(token))
+	_, err := a.db.Exec(`DELETE FROM sessions WHERE token_hash = $1`, hashToken(token))
 	if err != nil {
 		return fmt.Errorf("auth: delete session: %w", err)
 	}
@@ -221,7 +209,7 @@ func (a *PasswordAuthenticator) Logout(token string) error {
 // stale rate-limiter buckets on the same pass (ADR-01/ADR-04: one ticker,
 // one goroutine, no second background process).
 func (a *PasswordAuthenticator) CleanupExpired() error {
-	_, err := a.db.Exec(`DELETE FROM sessions WHERE expires_at < CURRENT_TIMESTAMP`)
+	_, err := a.db.Exec(`DELETE FROM sessions WHERE expires_at < now()`)
 	if err != nil {
 		return fmt.Errorf("auth: cleanup expired sessions: %w", err)
 	}
@@ -243,7 +231,7 @@ func (a *PasswordAuthenticator) CurrentUser(r *http.Request) (User, error) {
 	var userID int64
 	var expiresAt time.Time
 	qerr := a.db.QueryRow(
-		`SELECT user_id, expires_at FROM sessions WHERE token_hash = ?`, hash,
+		`SELECT user_id, expires_at FROM sessions WHERE token_hash = $1`, hash,
 	).Scan(&userID, &expiresAt)
 	if errors.Is(qerr, sql.ErrNoRows) {
 		return User{}, ErrUnauthenticated

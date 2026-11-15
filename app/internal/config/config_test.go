@@ -26,6 +26,7 @@ func fixtureUsersFS(t *testing.T, contents string) fstest.MapFS {
 func setAllRequiredEnv(t *testing.T) {
 	t.Helper()
 	vars := map[string]string{
+		"NIU_DATABASE_URL":   "postgres://u:p@localhost/db",
 		"NIU_SESSION_SECRET": "01234567890123456789012345678901", // 34 bytes
 		"NIU_USER_A_HASH":    "$2a$12$fixtureonlyfixtureonlyfixtureonly",
 		"NIU_USER_B_HASH":    "$2a$12$fixtureonlyfixtureonlyfixtureonlyy",

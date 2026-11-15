@@ -1,17 +1,17 @@
 // Playwright config for T-29 (E2E: FLIP animation, reduced-motion,
 // confetti one-shot, mobile viewport, optimistic rollback, keyboard nav,
-// aria-live). Starts the REAL Go binary against a temp SQLite DB — no
+// aria-live). Starts the REAL Go binary against a PostgreSQL database — no
 // mocked backend, per requirements.md §6 ("large" tier of the pyramid).
+// The specs expect an empty database: by default the local one from
+// `make db` (recreate it first with `make db-down db`), or E2E_DATABASE_URL.
 import { defineConfig, devices } from '@playwright/test';
 import path from 'node:path';
-import os from 'node:os';
-import fs from 'node:fs';
 import { fileURLToPath } from 'node:url';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
-const dbDir = fs.mkdtempSync(path.join(os.tmpdir(), 'niu-e2e-'));
-const dbPath = path.join(dbDir, 'niu.db');
+const databaseURL =
+  process.env.E2E_DATABASE_URL || 'postgres://niu:niu@localhost:54321/niu?sslmode=disable';
 const port = 8098;
 
 // NIU-4: config.Load() now fails fast without NIU_SESSION_SECRET +
@@ -30,7 +30,7 @@ const E2E_HASH_B = '$2a$12$vWKHyLuv0lMsBoHSMxx4X.05K./.SOfGBYs3xerxqTXmnsoesXjk6
 export default defineConfig({
   testDir: './specs',
   timeout: 30_000,
-  fullyParallel: false, // shared single-server SQLite DB across the suite
+  fullyParallel: false, // one server and one database across the suite
   workers: 1,
   reporter: [['list']],
   // NIU-4: log in once via global-setup.js and reuse the resulting
@@ -49,7 +49,7 @@ export default defineConfig({
     cwd: __dirname,
     env: {
       NIU_PORT: String(port),
-      NIU_DB_PATH: dbPath,
+      NIU_DATABASE_URL: databaseURL,
       NIU_ENV: 'development',
       NIU_SESSION_SECRET: 'e2e-fixture-session-secret-32bytes!!',
       NIU_USER_A_HASH: E2E_HASH_A,
