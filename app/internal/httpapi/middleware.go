@@ -20,7 +20,7 @@ const maxRequestBody = 64 << 10
 // runs, so a 128 MiB body was allocated in full and only then rejected
 // for exceeding 200 characters — measured at ~896 MiB of memory for a
 // single request. A handful in parallel would OOM the process on the
-// shared VPS and take SQLite down with it.
+// shared VPS and take the database down with it.
 //
 // Note this is not mitigated by putting the app behind Cloudflare Access:
 // the request comes from an already-authenticated legitimate user, and a

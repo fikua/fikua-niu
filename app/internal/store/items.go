@@ -12,7 +12,7 @@ import (
 )
 
 // ItemsRepository implements items.Repository and items.EventSink on top
-// of SQLite. All queries use bound parameters (?) — never
+// of PostgreSQL. All queries use bound parameters ($1, $2, ...) — never
 // fmt.Sprintf into SQL (design.md §9, NFR-03, EC-10).
 type ItemsRepository struct {
 	db *sql.DB
@@ -37,7 +37,7 @@ func (r *ItemsRepository) Create(ctx context.Context, userID int64, name, nameNo
 
 	var existingLocation string
 	err = tx.QueryRowContext(ctx,
-		`SELECT location FROM items WHERE name_normalized = ?`,
+		`SELECT location FROM items WHERE name_normalized = $1`,
 		nameNormalized,
 	).Scan(&existingLocation)
 	if err == nil {
@@ -47,9 +47,15 @@ func (r *ItemsRepository) Create(ctx context.Context, userID int64, name, nameNo
 		return items.Item{}, fmt.Errorf("store: check duplicate: %w", err)
 	}
 
+	// Same lock as Update: the new item's position is MAX+1 of the shopping
+	// box, so a concurrent create or move into it must wait for this one.
+	if _, err := tx.ExecContext(ctx, `SELECT pg_advisory_xact_lock($1)`, itemsMoveLockID); err != nil {
+		return items.Item{}, fmt.Errorf("store: lock positions: %w", err)
+	}
+
 	var maxPos sql.NullFloat64
 	if err := tx.QueryRowContext(ctx,
-		`SELECT MAX(position) FROM items WHERE location = ?`,
+		`SELECT MAX(position) FROM items WHERE location = $1`,
 		string(items.LocationShopping),
 	).Scan(&maxPos); err != nil {
 		return items.Item{}, fmt.Errorf("store: max position: %w", err)
@@ -59,27 +65,26 @@ func (r *ItemsRepository) Create(ctx context.Context, userID int64, name, nameNo
 		position = maxPos.Float64 + 1.0
 	}
 
-	res, err := tx.ExecContext(ctx,
+	var id int64
+	err = tx.QueryRowContext(ctx,
 		`INSERT INTO items (name, name_normalized, location, position, added_by)
-		 VALUES (?, ?, ?, ?, ?)`,
+		 VALUES ($1, $2, $3, $4, $5) RETURNING id`,
 		name, nameNormalized, string(items.LocationShopping), position, userID,
-	)
+	).Scan(&id)
 	if err != nil {
 		// A concurrent insert may have won the race against our pre-check;
-		// the unique index surfaces as a constraint error here.
-		if isUniqueConstraintErr(err) {
+		// the unique index surfaces as a constraint error here. PostgreSQL
+		// aborts the transaction on any error, so the winner's location is
+		// read outside it.
+		if IsUniqueViolation(err) {
+			_ = tx.Rollback()
 			var loc string
-			_ = tx.QueryRowContext(ctx,
-				`SELECT location FROM items WHERE name_normalized = ?`, nameNormalized,
+			_ = r.db.QueryRowContext(ctx,
+				`SELECT location FROM items WHERE name_normalized = $1`, nameNormalized,
 			).Scan(&loc)
 			return items.Item{}, items.ErrDuplicate{ExistingLocation: items.Location(loc)}
 		}
 		return items.Item{}, fmt.Errorf("store: insert item: %w", err)
-	}
-
-	id, err := res.LastInsertId()
-	if err != nil {
-		return items.Item{}, fmt.Errorf("store: last insert id: %w", err)
 	}
 
 	if err := tx.Commit(); err != nil {
@@ -87,32 +92,6 @@ func (r *ItemsRepository) Create(ctx context.Context, userID int64, name, nameNo
 	}
 
 	return r.Get(ctx, id)
-}
-
-// isUniqueConstraintErr reports whether err represents a SQLite UNIQUE
-// constraint violation, without relying on driver-specific error types
-// (modernc.org/sqlite reports this as a plain error whose message
-// contains "UNIQUE constraint failed").
-func isUniqueConstraintErr(err error) bool {
-	if err == nil {
-		return false
-	}
-	msg := err.Error()
-	return contains(msg, "UNIQUE constraint failed")
-}
-
-func contains(s, substr string) bool {
-	return len(s) >= len(substr) && indexOf(s, substr) >= 0
-}
-
-func indexOf(s, substr string) int {
-	n := len(substr)
-	for i := 0; i+n <= len(s); i++ {
-		if s[i:i+n] == substr {
-			return i
-		}
-	}
-	return -1
 }
 
 const itemSelectColumns = `
@@ -179,7 +158,7 @@ func scanItem(scan func(dest ...any) error) (items.Item, error) {
 
 // Get returns a single item by ID.
 func (r *ItemsRepository) Get(ctx context.Context, id int64) (items.Item, error) {
-	row := r.db.QueryRowContext(ctx, `SELECT `+itemSelectColumns+itemSelectFrom+` WHERE i.id = ?`, id)
+	row := r.db.QueryRowContext(ctx, `SELECT `+itemSelectColumns+itemSelectFrom+` WHERE i.id = $1`, id)
 	it, err := scanItem(row.Scan)
 	if errors.Is(err, sql.ErrNoRows) {
 		return items.Item{}, items.ErrNotFound{ID: id}
@@ -224,42 +203,26 @@ func (r *ItemsRepository) List(ctx context.Context) ([]items.Item, error) {
 // concurrent move to the same box computes the same position, and both
 // rows land on top of each other. The parameter is kept so the Repository
 // interface stays stable for callers that do not care.
-// Note the transaction is opened with BEGIN IMMEDIATE rather than
-// database/sql's BeginTx. SQLite's default is a *deferred* transaction:
-// it takes no lock until the first statement, so a read-then-write
-// transaction starts as a reader and tries to upgrade to a writer at the
-// UPDATE. If another writer got there first, the upgrade cannot wait —
-// SQLite returns SQLITE_BUSY immediately, because backing off would risk
-// deadlock. busy_timeout does not help, precisely because there is
-// nothing safe to wait for.
-//
-// BEGIN IMMEDIATE takes the write lock up front, so a concurrent mover
-// blocks on acquisition and busy_timeout(5000) applies normally. Without
-// this, two people moving items at the same moment produced a 500 —
-// which is exactly what AC-09 forbids.
+// Concurrent moves are serialised with a transaction-scoped advisory lock
+// (pg_advisory_xact_lock) taken before the position is read: a second mover
+// waits for the first to commit and then reads the updated MAX(position), so
+// two people moving items into the same box at the same moment can never land
+// on the same position (AC-09). The lock is released at COMMIT/ROLLBACK.
 func (r *ItemsRepository) Update(ctx context.Context, id, userID int64, newLocation items.Location, _ float64) (items.Item, error) {
-	conn, err := r.db.Conn(ctx)
+	tx, err := r.db.BeginTx(ctx, nil)
 	if err != nil {
-		return items.Item{}, fmt.Errorf("store: acquire conn: %w", err)
+		return items.Item{}, fmt.Errorf("store: begin move tx: %w", err)
 	}
-	defer conn.Close() //nolint:errcheck // returning to the pool
+	defer tx.Rollback() //nolint:errcheck // no-op after commit
 
-	if _, err := conn.ExecContext(ctx, `BEGIN IMMEDIATE`); err != nil {
-		return items.Item{}, fmt.Errorf("store: begin immediate: %w", err)
+	if _, err := tx.ExecContext(ctx, `SELECT pg_advisory_xact_lock($1)`, itemsMoveLockID); err != nil {
+		return items.Item{}, fmt.Errorf("store: lock moves: %w", err)
 	}
-	committed := false
-	defer func() {
-		if !committed {
-			_, _ = conn.ExecContext(context.WithoutCancel(ctx), `ROLLBACK`)
-		}
-	}()
-
-	tx := conn
 
 	// COALESCE covers the empty-destination case: first item lands at 1.0.
 	var nextPosition float64
 	if err := tx.QueryRowContext(ctx,
-		`SELECT COALESCE(MAX(position), 0) + 1.0 FROM items WHERE location = ?`,
+		`SELECT COALESCE(MAX(position), 0) + 1.0 FROM items WHERE location = $1`,
 		string(newLocation),
 	).Scan(&nextPosition); err != nil {
 		return items.Item{}, fmt.Errorf("store: next position: %w", err)
@@ -267,9 +230,9 @@ func (r *ItemsRepository) Update(ctx context.Context, id, userID int64, newLocat
 
 	res, err := tx.ExecContext(ctx,
 		`UPDATE items
-		 SET location = ?, moved_by = ?, moved_at = CURRENT_TIMESTAMP,
-		     updated_at = CURRENT_TIMESTAMP, position = ?
-		 WHERE id = ?`,
+		 SET location = $1, moved_by = $2, moved_at = now(),
+		     updated_at = now(), position = $3
+		 WHERE id = $4`,
 		string(newLocation), userID, nextPosition, id,
 	)
 	if err != nil {
@@ -283,17 +246,20 @@ func (r *ItemsRepository) Update(ctx context.Context, id, userID int64, newLocat
 		return items.Item{}, items.ErrNotFound{ID: id}
 	}
 
-	if _, err := tx.ExecContext(ctx, `COMMIT`); err != nil {
+	if err := tx.Commit(); err != nil {
 		return items.Item{}, fmt.Errorf("store: commit move: %w", err)
 	}
-	committed = true
 	return r.Get(ctx, id)
 }
+
+// itemsMoveLockID is the advisory-lock key that serialises the writes that
+// compute a position (Create and Update).
+const itemsMoveLockID = 7_310_245
 
 // Delete removes the row. Idempotent: deleting an id that does not exist
 // returns existed=false and no error (EC-11).
 func (r *ItemsRepository) Delete(ctx context.Context, id int64) (bool, error) {
-	res, err := r.db.ExecContext(ctx, `DELETE FROM items WHERE id = ?`, id)
+	res, err := r.db.ExecContext(ctx, `DELETE FROM items WHERE id = $1`, id)
 	if err != nil {
 		return false, fmt.Errorf("store: delete item: %w", err)
 	}
@@ -309,7 +275,7 @@ func (r *ItemsRepository) Delete(ctx context.Context, id int64) (bool, error) {
 func (r *ItemsRepository) ExistsByNormalizedName(ctx context.Context, nameNormalized string) (bool, items.Location, error) {
 	var location string
 	err := r.db.QueryRowContext(ctx,
-		`SELECT location FROM items WHERE name_normalized = ?`, nameNormalized,
+		`SELECT location FROM items WHERE name_normalized = $1`, nameNormalized,
 	).Scan(&location)
 	if errors.Is(err, sql.ErrNoRows) {
 		return false, "", nil
@@ -325,7 +291,7 @@ func (r *ItemsRepository) ExistsByNormalizedName(ctx context.Context, nameNormal
 func (r *ItemsRepository) MaxPosition(ctx context.Context, location items.Location) (float64, bool, error) {
 	var maxPos sql.NullFloat64
 	if err := r.db.QueryRowContext(ctx,
-		`SELECT MAX(position) FROM items WHERE location = ?`, string(location),
+		`SELECT MAX(position) FROM items WHERE location = $1`, string(location),
 	).Scan(&maxPos); err != nil {
 		return 0, false, fmt.Errorf("store: max position: %w", err)
 	}
@@ -343,7 +309,7 @@ func (r *ItemsRepository) Record(ctx context.Context, userID int64, kind string,
 		return fmt.Errorf("store: marshal event payload: %w", err)
 	}
 	_, err = r.db.ExecContext(ctx,
-		`INSERT INTO events (user_id, kind, payload) VALUES (?, ?, ?)`,
+		`INSERT INTO events (user_id, kind, payload) VALUES ($1, $2, $3)`,
 		userID, kind, string(body),
 	)
 	if err != nil {
@@ -356,7 +322,7 @@ func (r *ItemsRepository) Record(ctx context.Context, userID int64, kind string,
 func (r *ItemsRepository) GetUser(ctx context.Context, id int64) (items.User, error) {
 	var u items.User
 	err := r.db.QueryRowContext(ctx,
-		`SELECT id, name, display_name, avatar_emoji FROM users WHERE id = ?`, id,
+		`SELECT id, name, display_name, avatar_emoji FROM users WHERE id = $1`, id,
 	).Scan(&u.ID, &u.Name, &u.DisplayName, &u.AvatarEmoji)
 	if err != nil {
 		return items.User{}, fmt.Errorf("store: get user: %w", err)

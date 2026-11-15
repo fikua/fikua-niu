@@ -12,8 +12,8 @@ import (
 )
 
 // ProjectsRepository implements projects.Repository and
-// projects.EventSink on top of SQLite. All queries use bound parameters
-// (?) — never fmt.Sprintf into SQL (design.md §9, NFR-03, EC-09).
+// projects.EventSink on top of PostgreSQL. All queries use bound parameters
+// ($1, $2, ...) — never fmt.Sprintf into SQL (design.md §9, NFR-03, EC-09).
 type ProjectsRepository struct {
 	db *sql.DB
 }
@@ -44,7 +44,7 @@ func (r *ProjectsRepository) Create(ctx context.Context, userID int64, name, nam
 
 	var exists int
 	err = tx.QueryRowContext(ctx,
-		`SELECT 1 FROM projects WHERE name_normalized = ?`,
+		`SELECT 1 FROM projects WHERE name_normalized = $1`,
 		nameNormalized,
 	).Scan(&exists)
 	if err == nil {
@@ -59,23 +59,19 @@ func (r *ProjectsRepository) Create(ctx context.Context, userID int64, name, nam
 		previewStatus = sql.NullString{String: projects.PreviewPending, Valid: true}
 	}
 
-	res, err := tx.ExecContext(ctx,
+	var id int64
+	err = tx.QueryRowContext(ctx,
 		`INSERT INTO projects (name, name_normalized, state, budget, target_date, url, preview_status, added_by, last_updated_by)
-		 VALUES (?, ?, 'idea', ?, ?, ?, ?, ?, ?)`,
+		 VALUES ($1, $2, 'idea', $3, $4, $5, $6, $7, $8) RETURNING id`,
 		name, nameNormalized, nullableString(budget), nullableString(targetDate), nullableString(url), previewStatus, userID, userID,
-	)
+	).Scan(&id)
 	if err != nil {
 		// A concurrent insert may have won the race against our pre-check;
 		// the unique index surfaces as a constraint error here.
-		if isUniqueConstraintErr(err) {
+		if IsUniqueViolation(err) {
 			return projects.Project{}, projects.ErrDuplicate{}
 		}
 		return projects.Project{}, fmt.Errorf("store: insert project: %w", err)
-	}
-
-	id, err := res.LastInsertId()
-	if err != nil {
-		return projects.Project{}, fmt.Errorf("store: last insert id: %w", err)
 	}
 
 	if err := tx.Commit(); err != nil {
@@ -184,7 +180,7 @@ func scanProject(scan func(dest ...any) error) (projects.Project, error) {
 
 // Get returns a single project by ID.
 func (r *ProjectsRepository) Get(ctx context.Context, id int64) (projects.Project, error) {
-	row := r.db.QueryRowContext(ctx, `SELECT `+projectSelectColumns+projectSelectFrom+` WHERE p.id = ?`, id)
+	row := r.db.QueryRowContext(ctx, `SELECT `+projectSelectColumns+projectSelectFrom+` WHERE p.id = $1`, id)
 	p, err := scanProject(row.Scan)
 	if errors.Is(err, sql.ErrNoRows) {
 		return projects.Project{}, projects.ErrNotFound{ID: id}
@@ -219,49 +215,25 @@ func (r *ProjectsRepository) List(ctx context.Context) ([]projects.Project, erro
 	return result, nil
 }
 
-// UpdateState applies a state transition in a single BEGIN IMMEDIATE
-// transaction (ADR-01 of NIU-1, reapplied here — design.md §5 Flux 2):
-// last write wins by server timestamp, no optimistic locking. See
-// store.ItemsRepository.Update for the full rationale on why BEGIN
-// IMMEDIATE (rather than database/sql's deferred BeginTx) is required to
-// avoid a concurrent SQLITE_BUSY on lock upgrade.
+// UpdateState applies a state transition in a single transaction (ADR-01 of
+// NIU-1, reapplied here — design.md §5 Flux 2): last write wins by server
+// timestamp, no optimistic locking.
 //
-// The prior state is read with `SELECT state ... WHERE id = ?` on the same
-// conn, immediately before the UPDATE, inside this same critical section
-// (F-23 fix). Previously this read happened via a separate, non-
-// transactional Service.Get call before this transaction even began, which
-// left a window where a second concurrent UpdateState could commit its own
-// transition in between — making the first call's "previous state" stale
-// by the time its event was recorded. Reading it here guarantees
-// previousState is exactly the row value this specific commit overwrote.
-//
-// The returned Project is also read on this same conn, BEFORE COMMIT
-// releases the write lock — not via a post-commit r.Get(ctx, id) call.
-// Reading it after COMMIT would reopen the very same class of race for
-// the *response* value: a second concurrent UpdateState could acquire the
-// lock and overwrite the row again in the window between this
-// transaction's COMMIT and its own subsequent Get, making the returned
-// Project (and therefore the event's own "to") reflect someone else's
-// write instead of this transaction's.
+// The row is read with SELECT ... FOR UPDATE, so a concurrent UpdateState on
+// the same project waits for this transaction to commit. That keeps both
+// guarantees of the original design (F-23): the previous state is exactly the
+// value this commit overwrote, and the returned Project — read inside the
+// transaction, before COMMIT — is this transaction's write, never someone
+// else's.
 func (r *ProjectsRepository) UpdateState(ctx context.Context, id, userID int64, newState projects.State) (projects.Project, projects.State, error) {
-	conn, err := r.db.Conn(ctx)
+	tx, err := r.db.BeginTx(ctx, nil)
 	if err != nil {
-		return projects.Project{}, "", fmt.Errorf("store: acquire conn: %w", err)
+		return projects.Project{}, "", fmt.Errorf("store: begin update state tx: %w", err)
 	}
-	defer conn.Close() //nolint:errcheck // returning to the pool
-
-	if _, err := conn.ExecContext(ctx, `BEGIN IMMEDIATE`); err != nil {
-		return projects.Project{}, "", fmt.Errorf("store: begin immediate: %w", err)
-	}
-	committed := false
-	defer func() {
-		if !committed {
-			_, _ = conn.ExecContext(context.WithoutCancel(ctx), `ROLLBACK`)
-		}
-	}()
+	defer tx.Rollback() //nolint:errcheck // no-op after commit
 
 	var previousState string
-	err = conn.QueryRowContext(ctx, `SELECT state FROM projects WHERE id = ?`, id).Scan(&previousState)
+	err = tx.QueryRowContext(ctx, `SELECT state FROM projects WHERE id = $1 FOR UPDATE`, id).Scan(&previousState)
 	if errors.Is(err, sql.ErrNoRows) {
 		return projects.Project{}, "", projects.ErrNotFound{ID: id}
 	}
@@ -269,10 +241,10 @@ func (r *ProjectsRepository) UpdateState(ctx context.Context, id, userID int64, 
 		return projects.Project{}, "", fmt.Errorf("store: read previous project state: %w", err)
 	}
 
-	res, err := conn.ExecContext(ctx,
+	res, err := tx.ExecContext(ctx,
 		`UPDATE projects
-		 SET state = ?, last_updated_by = ?, updated_at = CURRENT_TIMESTAMP
-		 WHERE id = ?`,
+		 SET state = $1, last_updated_by = $2, updated_at = now()
+		 WHERE id = $3`,
 		string(newState), userID, id,
 	)
 	if err != nil {
@@ -286,24 +258,22 @@ func (r *ProjectsRepository) UpdateState(ctx context.Context, id, userID int64, 
 		return projects.Project{}, "", projects.ErrNotFound{ID: id}
 	}
 
-	row := conn.QueryRowContext(ctx, `SELECT `+projectSelectColumns+projectSelectFrom+` WHERE p.id = ?`, id)
+	row := tx.QueryRowContext(ctx, `SELECT `+projectSelectColumns+projectSelectFrom+` WHERE p.id = $1`, id)
 	updated, err := scanProject(row.Scan)
 	if err != nil {
 		return projects.Project{}, "", fmt.Errorf("store: read updated project: %w", err)
 	}
 
-	if _, err := conn.ExecContext(ctx, `COMMIT`); err != nil {
+	if err := tx.Commit(); err != nil {
 		return projects.Project{}, "", fmt.Errorf("store: commit update project state: %w", err)
 	}
-	committed = true
-
 	return updated, projects.State(previousState), nil
 }
 
 // Delete removes the row. Idempotent: deleting an id that does not exist
 // returns existed=false and no error (EC-13).
 func (r *ProjectsRepository) Delete(ctx context.Context, id int64) (bool, error) {
-	res, err := r.db.ExecContext(ctx, `DELETE FROM projects WHERE id = ?`, id)
+	res, err := r.db.ExecContext(ctx, `DELETE FROM projects WHERE id = $1`, id)
 	if err != nil {
 		return false, fmt.Errorf("store: delete project: %w", err)
 	}
@@ -320,7 +290,7 @@ func (r *ProjectsRepository) Delete(ctx context.Context, id int64) (bool, error)
 func (r *ProjectsRepository) ExistsByNormalizedName(ctx context.Context, nameNormalized string) (bool, error) {
 	var exists int
 	err := r.db.QueryRowContext(ctx,
-		`SELECT 1 FROM projects WHERE name_normalized = ?`, nameNormalized,
+		`SELECT 1 FROM projects WHERE name_normalized = $1`, nameNormalized,
 	).Scan(&exists)
 	if errors.Is(err, sql.ErrNoRows) {
 		return false, nil
@@ -339,8 +309,8 @@ func (r *ProjectsRepository) ExistsByNormalizedName(ctx context.Context, nameNor
 func (r *ProjectsRepository) UpdatePreview(ctx context.Context, id int64, title, imageURL, description *string, status string) error {
 	_, err := r.db.ExecContext(ctx,
 		`UPDATE projects
-		 SET title = ?, image_url = ?, description = ?, preview_status = ?
-		 WHERE id = ?`,
+		 SET title = $1, image_url = $2, description = $3, preview_status = $4
+		 WHERE id = $5`,
 		nullableString(title), nullableString(imageURL), nullableString(description), status, id,
 	)
 	if err != nil {
@@ -358,7 +328,7 @@ func (r *ProjectsRepository) Record(ctx context.Context, userID int64, kind stri
 		return fmt.Errorf("store: marshal event payload: %w", err)
 	}
 	_, err = r.db.ExecContext(ctx,
-		`INSERT INTO events (user_id, kind, payload) VALUES (?, ?, ?)`,
+		`INSERT INTO events (user_id, kind, payload) VALUES ($1, $2, $3)`,
 		userID, kind, string(body),
 	)
 	if err != nil {

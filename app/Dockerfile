@@ -1,7 +1,7 @@
 # Niu — multi-stage build (PLAN.md §5.2, §2.3).
 #
-# Pure Go module (modernc.org/sqlite has no CGO dependency), so
-# CGO_ENABLED=0 produces a fully static binary. That is what makes a
+# Pure Go module (no CGO dependency), so CGO_ENABLED=0 produces a fully
+# static binary. That is what makes a
 # distroless/scratch runtime image possible at all.
 
 FROM golang:1.26-alpine AS build
@@ -20,6 +20,8 @@ COPY . .
 # symbol table and DWARF info — smaller binary, nothing user-facing lost
 # since Niu ships no CLI stack traces (S9: never leak internals anyway).
 RUN CGO_ENABLED=0 go build -trimpath -ldflags="-s -w" -o /niu ./cmd/niu
+# One-off SQLite -> PostgreSQL copy tool (run once, see fikua-platform-iac).
+RUN CGO_ENABLED=0 go build -trimpath -ldflags="-s -w" -o /sqlite2pg ./cmd/sqlite2pg
 
 # distroless/static: no shell, no package manager, no libc — matches the
 # static binary above and gives S9 (no secrets, no OS cruft in the image)
@@ -27,6 +29,7 @@ RUN CGO_ENABLED=0 go build -trimpath -ldflags="-s -w" -o /niu ./cmd/niu
 FROM gcr.io/distroless/static-debian12:nonroot
 
 COPY --from=build /niu /niu
+COPY --from=build /sqlite2pg /sqlite2pg
 
 # NIU_PORT default is 8080 (internal/config/config.go); Traefik reaches
 # the container on this port over the traefik-public network, never

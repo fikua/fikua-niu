@@ -11,7 +11,6 @@ import (
 	"context"
 	"io/fs"
 	"net/http/httptest"
-	"path/filepath"
 	"testing"
 	"testing/fstest"
 
@@ -22,6 +21,7 @@ import (
 	"niu/internal/items"
 	"niu/internal/projects"
 	"niu/internal/store"
+	"niu/tests/testdb"
 )
 
 // controlledFetchForProjects adapts controlledFetch's ideas.Preview
@@ -48,9 +48,9 @@ func controlledFetchForProjects(ctx context.Context, targetURL string) (projects
 func newProjectsHTTPTestServer(t *testing.T, userID int64) *testServer {
 	t.Helper()
 
-	dbPath := filepath.Join(t.TempDir(), "niu.db")
+	dbURL := testdb.URL(t)
 
-	st, err := store.Open(dbPath, niu.MigrationsFS)
+	st, err := store.Open(dbURL, niu.MigrationsFS)
 	if err != nil {
 		t.Fatalf("store.Open: %v", err)
 	}

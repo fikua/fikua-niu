@@ -1,10 +1,24 @@
-.PHONY: test lint typecheck build bootstrap up down killtest
+.PHONY: test lint typecheck build bootstrap up down db db-down
 
 # Aligned with fikua.yml `commands.*` (manifest is the source of truth;
 # this Makefile is a convenience wrapper for local developer use).
 
-test:
-	go test ./...
+# Throwaway local PostgreSQL. The platform uses its shared cluster (one schema
+# and role per service); here a plain database is enough.
+LOCAL_DB_URL ?= postgres://niu:niu@localhost:54321/niu?sslmode=disable
+
+db:
+	@docker inspect niu-dev-db >/dev/null 2>&1 || docker run -d --name niu-dev-db \
+		-e POSTGRES_USER=niu -e POSTGRES_PASSWORD=niu -e POSTGRES_DB=niu -p 54321:5432 postgres:17-alpine
+	@docker start niu-dev-db >/dev/null
+	@until docker exec niu-dev-db pg_isready -U niu -q; do sleep 1; done
+
+db-down:
+	-docker rm -f niu-dev-db
+
+# The integration tests need PostgreSQL (skipped without TEST_DATABASE_URL).
+test: db
+	TEST_DATABASE_URL=$(LOCAL_DB_URL) go test -count=1 ./...
 
 # lint accepts a trailing path argument, per the manifest contract
 # (commands.lint: "gofmt -l"). Bare `make lint` checks the whole module.
@@ -27,11 +41,3 @@ up:
 
 down:
 	docker compose down
-
-# killtest (ADR-04, T-31): repeatedly SIGKILL the running binary mid-write
-# and verify SQLite integrity + clean restart. NOT run in CI by default —
-# manual, mandatory procedure before closing NIU-1 (REL-01/NFR-07).
-# Usage: make killtest N=10
-N ?= 10
-killtest:
-	go run ./tests/killtest -n $(N)

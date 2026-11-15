@@ -107,7 +107,7 @@ func TestSQLInjectionPayload_StoredLiterally_TableSurvives(t *testing.T) {
 	}
 
 	var one int
-	if err := srv.Store.DB.QueryRow("SELECT 1 FROM sqlite_master WHERE type='table' AND name='items'").Scan(&one); err != nil {
+	if err := srv.Store.DB.QueryRow("SELECT 1 FROM information_schema.tables WHERE table_schema = current_schema() AND table_name = 'items'").Scan(&one); err != nil {
 		t.Fatalf("items table missing after injection attempt: %v", err)
 	}
 }
@@ -252,7 +252,7 @@ func TestProjects_SQLInjectionPayload_StoredLiterally_TableSurvives(t *testing.T
 	}
 
 	var one int
-	if err := srv.Store.DB.QueryRow("SELECT 1 FROM sqlite_master WHERE type='table' AND name='projects'").Scan(&one); err != nil {
+	if err := srv.Store.DB.QueryRow("SELECT 1 FROM information_schema.tables WHERE table_schema = current_schema() AND table_name = 'projects'").Scan(&one); err != nil {
 		t.Fatalf("projects table missing after injection attempt: %v", err)
 	}
 }
@@ -375,7 +375,7 @@ func TestIdeas_SQLInjectionPayloadInURL_StoredLiterally_TableSurvives(t *testing
 	}
 	var one int
 	if err := srv.Store.DB.QueryRow(
-		"SELECT 1 FROM sqlite_master WHERE type='table' AND name='activity_ideas'",
+		"SELECT 1 FROM information_schema.tables WHERE table_schema = current_schema() AND table_name = 'activity_ideas'",
 	).Scan(&one); err != nil {
 		t.Fatalf("activity_ideas table missing after injection attempt: %v", err)
 	}
@@ -398,7 +398,7 @@ func TestIdeas_SQLInjectionPayloadInRecoveredMetadata_StoredLiterally_TableSurvi
 	}
 	var one int
 	if err := srv.Store.DB.QueryRow(
-		"SELECT 1 FROM sqlite_master WHERE type='table' AND name='activity_ideas'",
+		"SELECT 1 FROM information_schema.tables WHERE table_schema = current_schema() AND table_name = 'activity_ideas'",
 	).Scan(&one); err != nil {
 		t.Fatalf("activity_ideas table missing after injection attempt via recovered metadata: %v", err)
 	}

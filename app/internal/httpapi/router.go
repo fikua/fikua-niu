@@ -20,7 +20,7 @@ import (
 )
 
 // HealthChecker is implemented by internal/store — a trivial query
-// against SQLite (REL-03).
+// against PostgreSQL (REL-03).
 type HealthChecker interface {
 	Healthy() error
 }

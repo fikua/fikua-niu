@@ -8,5 +8,8 @@ VALUES
   (1, 'usuari_a', 'Usuari A', '$2a$12$placeholderplaceholderplaceholderplaceholde', '🐦'),
   (2, 'usuari_b', 'Usuari B', '$2a$12$placeholderplaceholderplaceholderplaceholde', '🦊');
 
+-- Explicit ids above: move the identity counter past them.
+SELECT setval(pg_get_serial_sequence('users', 'id'), (SELECT MAX(id) FROM users));
+
 -- +goose Down
 DELETE FROM users WHERE id IN (1, 2);

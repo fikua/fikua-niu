@@ -46,7 +46,7 @@ func TestConfigSeed_UpdateFailsWhenNameDoesNotMatchSeedRow(t *testing.T) {
 		t.Fatalf("bcrypt.GenerateFromPassword: %v", err)
 	}
 
-	res, err := srv.Store.DB.Exec(`UPDATE users SET password_hash = ? WHERE name = ?`, string(hash), "nom_que_no_existeix")
+	res, err := srv.Store.DB.Exec(`UPDATE users SET password_hash = $1 WHERE name = $2`, string(hash), "nom_que_no_existeix")
 	if err != nil {
 		t.Fatalf("UPDATE: %v", err)
 	}

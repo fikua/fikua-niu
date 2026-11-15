@@ -12,7 +12,7 @@ import (
 )
 
 // IdeasRepository implements ideas.Repository and ideas.EventSink on top
-// of SQLite. All queries use bound parameters (?) — never fmt.Sprintf
+// of PostgreSQL. All queries use bound parameters ($1, $2, ...) — never fmt.Sprintf
 // into SQL (design.md §9, NFR-02, EC-12).
 type IdeasRepository struct {
 	db *sql.DB
@@ -26,17 +26,13 @@ func NewIdeasRepository(db *sql.DB) *IdeasRepository {
 // Create inserts a new idea with preview_status='pending' and every
 // preview field NULL (ADR-03 — every row is born pending).
 func (r *IdeasRepository) Create(ctx context.Context, userID int64, url string) (ideas.Idea, error) {
-	res, err := r.db.ExecContext(ctx,
-		`INSERT INTO activity_ideas (url, preview_status, added_by) VALUES (?, 'pending', ?)`,
+	var id int64
+	err := r.db.QueryRowContext(ctx,
+		`INSERT INTO activity_ideas (url, preview_status, added_by) VALUES ($1, 'pending', $2) RETURNING id`,
 		url, userID,
-	)
+	).Scan(&id)
 	if err != nil {
 		return ideas.Idea{}, fmt.Errorf("store: insert idea: %w", err)
-	}
-
-	id, err := res.LastInsertId()
-	if err != nil {
-		return ideas.Idea{}, fmt.Errorf("store: last insert id: %w", err)
 	}
 
 	return r.Get(ctx, id)
@@ -100,7 +96,7 @@ func scanIdea(scan func(dest ...any) error) (ideas.Idea, error) {
 
 // Get returns a single idea by ID.
 func (r *IdeasRepository) Get(ctx context.Context, id int64) (ideas.Idea, error) {
-	row := r.db.QueryRowContext(ctx, `SELECT `+ideaSelectColumns+ideaSelectFrom+` WHERE i.id = ?`, id)
+	row := r.db.QueryRowContext(ctx, `SELECT `+ideaSelectColumns+ideaSelectFrom+` WHERE i.id = $1`, id)
 	idea, err := scanIdea(row.Scan)
 	if errors.Is(err, sql.ErrNoRows) {
 		return ideas.Idea{}, ideas.ErrNotFound{ID: id}
@@ -144,8 +140,8 @@ func (r *IdeasRepository) List(ctx context.Context) ([]ideas.Idea, error) {
 func (r *IdeasRepository) UpdatePreview(ctx context.Context, id int64, title, imageURL, description *string, status ideas.PreviewStatus) error {
 	_, err := r.db.ExecContext(ctx,
 		`UPDATE activity_ideas
-		 SET title = ?, image_url = ?, description = ?, preview_status = ?
-		 WHERE id = ?`,
+		 SET title = $1, image_url = $2, description = $3, preview_status = $4
+		 WHERE id = $5`,
 		nullableString(title), nullableString(imageURL), nullableString(description), string(status), id,
 	)
 	if err != nil {
@@ -157,7 +153,7 @@ func (r *IdeasRepository) UpdatePreview(ctx context.Context, id int64, title, im
 // Delete removes the row. Idempotent: deleting an id that does not exist
 // returns existed=false and no error (EC-15).
 func (r *IdeasRepository) Delete(ctx context.Context, id int64) (bool, error) {
-	res, err := r.db.ExecContext(ctx, `DELETE FROM activity_ideas WHERE id = ?`, id)
+	res, err := r.db.ExecContext(ctx, `DELETE FROM activity_ideas WHERE id = $1`, id)
 	if err != nil {
 		return false, fmt.Errorf("store: delete idea: %w", err)
 	}
@@ -183,7 +179,7 @@ func (r *IdeasRepository) Record(ctx context.Context, userID int64, kind string,
 		userIDArg = userID
 	}
 	_, err = r.db.ExecContext(ctx,
-		`INSERT INTO events (user_id, kind, payload) VALUES (?, ?, ?)`,
+		`INSERT INTO events (user_id, kind, payload) VALUES ($1, $2, $3)`,
 		userIDArg, kind, string(body),
 	)
 	if err != nil {

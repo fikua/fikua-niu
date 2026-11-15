@@ -73,7 +73,7 @@ func run() error {
 		return err
 	}
 
-	st, err := store.Open(cfg.DBPath, niu.MigrationsFS)
+	st, err := store.Open(cfg.DatabaseURL, niu.MigrationsFS)
 	if err != nil {
 		return err
 	}
@@ -197,7 +197,7 @@ func seedCredentials(db *sql.DB, cfg config.Config) error {
 
 	for _, seed := range seeds {
 		res, err := tx.Exec(
-			`UPDATE users SET name = ?, password_hash = ?, display_name = ?, avatar_emoji = ? WHERE id = ?`,
+			`UPDATE users SET name = $1, password_hash = $2, display_name = $3, avatar_emoji = $4 WHERE id = $5`,
 			seed.name, seed.hash, seed.display, seed.avatar, seed.id,
 		)
 		if err != nil {
