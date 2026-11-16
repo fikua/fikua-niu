@@ -142,7 +142,6 @@ niu/                              ← this repo (project meta-folder + code)
     │   └── js/
     ├── tests/                    ← integration + security tests
     ├── Dockerfile
-    ├── compose.yaml              ← synced copy; source of truth in IaC repo
     ├── .env.example
     └── Makefile
 ```
@@ -374,10 +373,9 @@ published host port, Traefik-routed. Differences for Niu:
   This is a documented, production-confirmed gotcha.
 - Resource limits: memory 128M, cpus '0.5'. Logging json-file, 25m × 3.
 
-Source of truth for the compose file is
-`fikua-platform-iac/projects/niu/compose.yaml`; a synced copy lives at
-`niu/app/compose.yaml` so `deploy.yml` can push it. Keep both in sync —
-same convention as exam-room.
+The compose file lives only in `fikua-platform-iac/projects/niu/compose.yaml`
+and that repo's `deploy-projects` workflow applies it; `deploy.yml` here only
+rolls out a new image (no copy of the compose file in this repo).
 
 ### 5.3 CI/CD (GitHub Actions)
 
