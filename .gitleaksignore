@@ -1,0 +1,2 @@
+# Dummy password used only to keep bcrypt timing constant for unknown users, not a credential.
+d750fbbd3ebec480c51823f9820312f12778345a:app/internal/auth/password.go:generic-api-key:94
