@@ -3,7 +3,7 @@ module niu
 go 1.26.5
 
 require (
-	github.com/go-chi/chi/v5 v5.3.1
+	github.com/go-chi/chi/v5 v5.5.0
 	github.com/jackc/pgx/v5 v5.13.0
 	github.com/pressly/goose/v3 v3.27.3
 	go.opentelemetry.io/contrib/bridges/otelslog v0.21.0
