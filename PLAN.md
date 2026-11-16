@@ -234,7 +234,7 @@ reintroduce CSRF).
 | `GET` | `/api/v1/me` | Current user (stub until NIU-4) |
 | `POST` | `/api/v1/auth/login` | NIU-4 |
 | `POST` | `/api/v1/auth/logout` | NIU-4 |
-| `GET` | `/healthz` | Liveness — **not** under `/api/v1`, no auth |
+| `GET` | `/health` | Liveness — **not** under `/api/v1`, no auth |
 
 **Error format (binding, uniform):**
 
@@ -617,7 +617,7 @@ Rules:
 **Reliability**
 - `docker kill` mid-`UPDATE` → no corruption (WAL).
 - Backup restores into an empty DB and yields identical item set.
-- `/healthz` returns 200 only when the DB is reachable.
+- `/health` returns 200 only when the DB is reachable.
 
 **Accessibility**
 - Full keyboard operation: add, move, delete.

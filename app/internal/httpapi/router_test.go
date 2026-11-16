@@ -61,7 +61,7 @@ func TestNoMutatingGETRoutes(t *testing.T) {
 	// deliberate update here fails the test — which is the point: EC-08
 	// must break loudly if someone wires a mutation behind a GET.
 	wantGET := map[string]bool{
-		"/healthz":          true,
+		"/health":           true,
 		"/api/v1/me":        true,
 		"/api/v1/items/":    true,
 		"/api/v1/projects/": true,

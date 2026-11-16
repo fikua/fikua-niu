@@ -11,13 +11,13 @@ import (
 // T-28 — S3a/S3b/S7/S8/EC-08/EC-09/EC-10.
 
 // S7/NFR-02: security headers present on 100% of responses (API and
-// static alike — checked here on both an API response and a healthz
+// static alike — checked here on both an API response and a health
 // response, both go through the same outermost SecurityHeaders
 // middleware).
 func TestSecurityHeaders_PresentOnAllResponses(t *testing.T) {
 	srv := newTestServer(t, seedUserAID)
 
-	endpoints := []string{"/api/v1/items", "/healthz"}
+	endpoints := []string{"/api/v1/items", "/health"}
 	for _, path := range endpoints {
 		res, err := http.Get(srv.URL + path)
 		if err != nil {

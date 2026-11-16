@@ -24,7 +24,7 @@ deploy.yml   ──ssh (Cloudflare Access tunnel)──▶  VPS
 docker compose pull && up -d   (niu-data-init chowns the volume first)
         │
         ▼
-health poll (/healthz) + Traefik smoke test
+health poll (/health) + Traefik smoke test
 ```
 
 ## ⚠️ Before the first public deploy — Cloudflare Access (S10, blocking)
@@ -58,9 +58,9 @@ not reach the app).
    - `deploy.yml` — deploys to the `prd` GitHub environment. If the
      environment has required reviewers configured, the run pauses
      until approved.
-3. Watch the deploy job: it polls `/healthz` for up to 150s, then runs a
+3. Watch the deploy job: it polls `/health` for up to 150s, then runs a
    Traefik smoke test with the `Host: niu.fikua.com` header.
-4. Confirm from outside: `curl -I https://niu.fikua.com/healthz`
+4. Confirm from outside: `curl -I https://niu.fikua.com/health`
    (expect a redirect to Cloudflare Access once S10 is configured, or a
    direct `200` only if you're already authenticated in the browser
    session used for `curl`... in practice, verify via a real browser).
@@ -133,7 +133,7 @@ container state.
 Once NIU-3 lands, traces/metrics/logs for `service.name = niu` are
 visible at `https://observability.fikua.com` (Cloudflare Access,
 existing GitHub IdP). Until NIU-3 ships, the only signal is
-`docker compose logs niu` on the VPS and the `/healthz` endpoint.
+`docker compose logs niu` on the VPS and the `/health` endpoint.
 
 ## Related
 

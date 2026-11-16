@@ -56,7 +56,7 @@ export default defineConfig({
       NIU_USER_B_HASH: E2E_HASH_B,
       PATH: process.env.PATH,
     },
-    url: `http://localhost:${port}/healthz`,
+    url: `http://localhost:${port}/health`,
     reuseExistingServer: false,
     timeout: 30_000,
   },

@@ -32,13 +32,17 @@ import (
 	"niu/internal/items"
 	"niu/internal/projects"
 	"niu/internal/store"
+	"niu/internal/telemetry"
 )
 
 // cleanupInterval is how often the background goroutine deletes expired
 // sessions and stale rate-limit buckets (ADR-04).
 const cleanupInterval = 1 * time.Hour
 
-// setupLogging installs the process-wide slog handler. Without this, Go's
+// setupLogging installs the process-wide slog handler and the OpenTelemetry
+// providers (Fikua observability convention): JSON to stdout with trace_id
+// and, when OTEL_EXPORTER_OTLP_ENDPOINT is set, logs, traces and metrics to
+// the platform Collector. It returns the function that flushes them. Without this, Go's
 // default handler discards every Debug record, so diagnostics written at
 // that level — notably the per-idea reason a link preview failed
 // (ideas.Service.resolvePreview) — never reached the logs at all, and a
@@ -46,7 +50,7 @@ const cleanupInterval = 1 * time.Hour
 //
 // Level is read from NIU_LOG_LEVEL (debug|info|warn|error), defaulting to
 // info so production verbosity is unchanged unless explicitly raised.
-func setupLogging() {
+func setupLogging() func(context.Context) error {
 	level := slog.LevelInfo
 	switch strings.ToLower(strings.TrimSpace(os.Getenv("NIU_LOG_LEVEL"))) {
 	case "debug":
@@ -56,12 +60,22 @@ func setupLogging() {
 	case "error":
 		level = slog.LevelError
 	}
-	slog.SetDefault(slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: level})))
+	shutdown, err := telemetry.SetupLevel(context.Background(), "niu", level)
+	if err != nil {
+		slog.SetDefault(slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: level})))
+		slog.Error("niu: telemetry disabled", "err", err)
+		return func(context.Context) error { return nil }
+	}
+	return shutdown
 }
 
 func main() {
-	setupLogging()
-	if err := run(); err != nil {
+	shutdownTelemetry := setupLogging()
+	err := run()
+	flush, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	_ = shutdownTelemetry(flush)
+	cancel()
+	if err != nil {
 		slog.Error("niu: fatal", "error", err)
 		os.Exit(1)
 	}
@@ -156,7 +170,7 @@ func run() error {
 	// values are generous for a two-person app on a shared VPS.
 	srv := &http.Server{
 		Addr:              addr,
-		Handler:           router,
+		Handler:           telemetry.HTTPHandler(router),
 		ReadHeaderTimeout: 10 * time.Second,
 		ReadTimeout:       30 * time.Second,
 		WriteTimeout:      30 * time.Second,

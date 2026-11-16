@@ -165,9 +165,9 @@ func (s *Server) handleMe(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-// handleHealthz is GET /healthz — REL-03/NFR-08: reflects the real state
+// handleHealth is GET /health — REL-03/NFR-08: reflects the real state
 // of the database dependency, not just process liveness.
-func (s *Server) handleHealthz(w http.ResponseWriter, r *http.Request) {
+func (s *Server) handleHealth(w http.ResponseWriter, r *http.Request) {
 	if err := s.health.Healthy(); err != nil {
 		writeError(w, http.StatusServiceUnavailable, "internal_error", "Base de dades no disponible.")
 		return

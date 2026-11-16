@@ -95,7 +95,7 @@ func (s *Store) Close() error {
 }
 
 // Healthy runs a trivial query against PostgreSQL to verify the dependency is
-// reachable — used by GET /healthz (REL-03, NFR-08).
+// reachable — used by GET /health (REL-03, NFR-08).
 func (s *Store) Healthy() error {
 	var one int
 	return s.DB.QueryRow("SELECT 1").Scan(&one)

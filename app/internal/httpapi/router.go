@@ -17,6 +17,7 @@ import (
 	"niu/internal/ideas"
 	"niu/internal/items"
 	"niu/internal/projects"
+	"niu/internal/telemetry"
 )
 
 // HealthChecker is implemented by internal/store — a trivial query
@@ -52,7 +53,7 @@ type Server struct {
 
 // NewRouter builds the complete chi/v5 router: security headers first
 // (before any other middleware, design.md §9), then auth injection, then
-// routes for /api/v1/*, /healthz, and the embedded static frontend for
+// routes for /api/v1/*, /health, and the embedded static frontend for
 // everything else.
 //
 // cookiesSecure controls the Secure attribute on the session/CSRF cookies
@@ -71,10 +72,14 @@ func NewRouter(svc *items.Service, projectsSvc *projects.Service, ideasSvc *idea
 	r.Use(LimitBody)
 	r.Use(Recoverer)
 	r.Use(chimw.Logger)
+	// Names the request's span and its http.route after the chi pattern
+	// (observability convention OBS-11).
+	r.Use(telemetry.ChiRoute)
 
-	// /healthz is intentionally outside /api/v1 and outside the auth
-	// middleware — liveness must not depend on identity.
-	r.Get("/healthz", s.handleHealthz)
+	// /health (the only health path, observability convention OBS-17) is
+	// intentionally outside /api/v1 and outside the auth middleware —
+	// liveness must not depend on identity.
+	r.Get("/health", s.handleHealth)
 
 	// POST /api/v1/auth/login is mounted on the OUTER router, before
 	// entering the /api/v1 group's WithCurrentUser middleware (no session
@@ -160,7 +165,7 @@ func NewRouter(svc *items.Service, projectsSvc *projects.Service, ideasSvc *idea
 		})
 	})
 
-	// Static frontend: anything not matching /api/v1/* or /healthz is
+	// Static frontend: anything not matching /api/v1/* or /health is
 	// served from the embedded web/ tree (design.md §8, PLAN.md §2.1 — no
 	// server-side templating).
 	//

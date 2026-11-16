@@ -33,7 +33,7 @@ jobs:
     # steps and current status.
     environment:
       name: prd
-      url: https://niu.fikua.com/healthz
+      url: https://niu.fikua.com/health
 
     steps:
       - name: Checkout (for the compose file)
@@ -101,26 +101,26 @@ jobs:
             NIU_VERSION='$NORMALISED_TAG' sudo --preserve-env=NIU_VERSION docker compose up -d
           "
 
-      - name: Wait for /healthz to report ok
+      - name: Wait for /health to report ok
         # The image is distroless (no shell, no wget/curl inside the
         # container), and the container publishes no host port — reach
         # it by sharing its network namespace from a throwaway curl
         # container instead of `docker exec`.
         run: |
           for i in $(seq 1 30); do
-            body=$(ssh vps.fikua.com 'sudo docker run --rm --network container:niu curlimages/curl:latest -sf http://127.0.0.1:8080/healthz' || true)
+            body=$(ssh vps.fikua.com 'sudo docker run --rm --network container:niu curlimages/curl:latest -sf http://127.0.0.1:8080/health' || true)
             echo "attempt $i: $body" | head -c 400
             echo
             if echo "$body" | grep -q '"status":"ok"'; then
-              echo "/healthz is ok"
+              echo "/health is ok"
               exit 0
             fi
             sleep 5
           done
-          echo "/healthz did not report ok within 150s"
+          echo "/health did not report ok within 150s"
           exit 1
 
       - name: Smoke-test through Traefik (Host header)
         run: |
           ssh vps.fikua.com \
-            'curl -sIk -H "Host: niu.fikua.com" https://127.0.0.1/healthz | head -5'
+            'curl -sIk -H "Host: niu.fikua.com" https://127.0.0.1/health | head -5'

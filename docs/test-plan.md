@@ -330,7 +330,7 @@ n'hi ha prou que la mitigació existeixi en el codi.
 |---|---|---|---|
 | REL-01 | `docker kill` a mig `UPDATE` no corromp la base de dades | **Donat** una escriptura en curs — **Quan** el contenidor es mata abruptament — **Llavors** la base de dades passa `PRAGMA integrity_check` i l'app arrenca neta | 🟢 NIU-1 |
 | REL-02 | Restauració d'una còpia de seguretat és fidel | **Donat** una còpia de seguretat presa amb `sqlite3 .backup` — **Quan** es restaura en una base de dades buida — **Llavors** el conjunt d'ítems resultant és idèntic a l'original | ⚪ NIU-2 |
-| REL-03 | `/healthz` reflecteix l'estat real de la base de dades | **Donat** la base de dades és accessible — **Quan** es crida `GET /healthz` — **Llavors** respon 200; **Donat** la base de dades no és accessible — **Quan** es crida `GET /healthz` — **Llavors** respon amb un codi d'error | 🟢 NIU-1 |
+| REL-03 | `/health` reflecteix l'estat real de la base de dades | **Donat** la base de dades és accessible — **Quan** es crida `GET /health` — **Llavors** respon 200; **Donat** la base de dades no és accessible — **Quan** es crida `GET /health` — **Llavors** respon amb un codi d'error | 🟢 NIU-1 |
 
 ### 2.4 Accessibilitat
 
