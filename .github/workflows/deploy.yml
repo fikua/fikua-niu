@@ -36,9 +36,6 @@ jobs:
       url: https://niu.fikua.com/health
 
     steps:
-      - name: Checkout (for the compose file)
-        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5  # v4.3.1
-
       - name: Install cloudflared
         run: |
           curl --proto '=https' --tlsv1.2 -fsSL \
@@ -75,19 +72,9 @@ jobs:
           echo "CF_ACCESS_CLIENT_ID=$CF_ACCESS_CLIENT_ID" >> "$GITHUB_ENV"
           echo "CF_ACCESS_CLIENT_SECRET=$CF_ACCESS_CLIENT_SECRET" >> "$GITHUB_ENV"
 
-      - name: Copy compose.yaml from platform-iac source of truth
-        # The compose file lives in the platform-iac repo, but to keep
-        # this workflow self-contained we ship the same file alongside
-        # the app under app/compose.yaml; if it isn't present yet we
-        # fall back to whatever is already on the VPS.
-        run: |
-          if [ -f app/compose.yaml ]; then
-            scp app/compose.yaml vps.fikua.com:/tmp/niu-compose.yaml
-            ssh vps.fikua.com 'sudo mkdir -p /opt/vps/projects/niu && sudo cp /tmp/niu-compose.yaml /opt/vps/projects/niu/compose.yaml && sudo chown ubuntu:ubuntu /opt/vps/projects/niu/compose.yaml'
-          else
-            echo "::notice::app/compose.yaml not present in the app repo — keeping the on-host compose file as is."
-          fi
-
+      # The compose file is not shipped from here: fikua-platform-iac
+      # (projects/…/compose.yaml) is its only source and its deploy-projects
+      # workflow applies it. This job only rolls out the new image.
       - name: Pull and restart on the VPS
         env:
           IMAGE_TAG: ${{ inputs.image_tag || github.event.release.tag_name || 'latest' }}
