@@ -27,6 +27,7 @@ import (
 	"niu/internal/auth"
 	"niu/internal/config"
 	"niu/internal/fetchsafe"
+	"niu/internal/health"
 	"niu/internal/httpapi"
 	"niu/internal/ideas"
 	"niu/internal/items"
@@ -70,6 +71,9 @@ func setupLogging() func(context.Context) error {
 }
 
 func main() {
+	if health.IsHealthcheck() {
+		os.Exit(health.Probe(":" + config.ListenPort()))
+	}
 	shutdownTelemetry := setupLogging()
 	err := run()
 	flush, cancel := context.WithTimeout(context.Background(), 5*time.Second)

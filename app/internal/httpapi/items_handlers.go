@@ -1,6 +1,7 @@
 package httpapi
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"net/http"
@@ -9,6 +10,7 @@ import (
 	"github.com/go-chi/chi/v5"
 
 	"niu/internal/auth"
+	"niu/internal/health"
 	"niu/internal/items"
 )
 
@@ -168,9 +170,7 @@ func (s *Server) handleMe(w http.ResponseWriter, r *http.Request) {
 // handleHealth is GET /health — REL-03/NFR-08: reflects the real state
 // of the database dependency, not just process liveness.
 func (s *Server) handleHealth(w http.ResponseWriter, r *http.Request) {
-	if err := s.health.Healthy(); err != nil {
-		writeError(w, http.StatusServiceUnavailable, "internal_error", "Base de dades no disponible.")
-		return
-	}
-	writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})
+	health.Handler("", map[string]health.Check{
+		"postgres:connection": func(context.Context) error { return s.health.Healthy() },
+	})(w, r)
 }

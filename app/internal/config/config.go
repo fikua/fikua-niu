@@ -105,7 +105,7 @@ func Load(usersFS fs.FS) (Config, error) {
 	}
 
 	cfg := Config{
-		Port:        getEnvOrDefault("NIU_PORT", defaultPort),
+		Port:        ListenPort(),
 		DatabaseURL: os.Getenv("NIU_DATABASE_URL"),
 		Env:         getEnvOrDefault("NIU_ENV", defaultEnv),
 
@@ -142,6 +142,9 @@ func Load(usersFS fs.FS) (Config, error) {
 
 	return cfg, nil
 }
+
+// ListenPort is the port the server listens on (NIU_PORT, default 8080).
+func ListenPort() string { return getEnvOrDefault("NIU_PORT", defaultPort) }
 
 func getEnvOrDefault(key, fallback string) string {
 	if v, ok := os.LookupEnv(key); ok && v != "" {
