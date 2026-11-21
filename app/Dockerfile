@@ -22,6 +22,7 @@ COPY . .
 RUN CGO_ENABLED=0 go build -trimpath -ldflags="-s -w" -o /niu ./cmd/niu
 # One-off SQLite -> PostgreSQL copy tool (run once, see fikua-platform-iac).
 RUN CGO_ENABLED=0 go build -trimpath -ldflags="-s -w" -o /sqlite2pg ./cmd/sqlite2pg
+RUN CGO_ENABLED=0 go build -trimpath -ldflags="-s -w" -o /healthcheck ./cmd/healthcheck
 
 # distroless/static: no shell, no package manager, no libc — matches the
 # static binary above and gives S9 (no secrets, no OS cruft in the image)
@@ -30,6 +31,7 @@ FROM gcr.io/distroless/static-debian12:nonroot
 
 COPY --from=build /niu /niu
 COPY --from=build /sqlite2pg /sqlite2pg
+COPY --from=build /healthcheck /healthcheck
 
 # NIU_PORT default is 8080 (internal/config/config.go); Traefik reaches
 # the container on this port over the traefik-public network, never
@@ -40,5 +42,8 @@ EXPOSE 8080
 # distroless/static:nonroot already runs as USER nonroot (65532:65532);
 # explicit for clarity and to fail loudly if the base image ever changes.
 USER 65532:65532
+# GET /health (OBS-17, DEP-10). Traefik routes only to healthy containers:
+# --start-interval makes a new one healthy seconds after it is ready.
+HEALTHCHECK --interval=30s --timeout=5s --start-period=60s --start-interval=2s --retries=3 CMD ["/healthcheck"]
 
 ENTRYPOINT ["/niu"]
